@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 115" width="100%" height="100%">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@1,900&amp;display=swap');
+      .logo-font {
+        font-family: 'Montserrat', 'Arial Black', 'Impact', sans-serif;
+        font-weight: 900;
+        font-style: italic;
+      }
+    </style>
+  </defs>
+
+  <!-- Wordmark -->
+  <g transform="translate(5, 80)">
+    <text class="logo-font" font-size="82" letter-spacing="-1px">
+      <tspan fill="#d40f21">Fernan</tspan><tspan fill="#f59e0b">Di</tspan><tspan fill="#581c87">Tio</tspan>
+    </text>
+  </g>
+
+  <!-- 3-Segment Underline Bar -->
+  <g transform="translate(7, 98)">
+    <!-- Red bar under Fernan -->
+    <rect x="2" y="0" width="206" height="7" rx="3.5" fill="#d40f21" />
+    <!-- Yellow bar under Di -->
+    <rect x="214" y="0" width="128" height="7" rx="1.5" fill="#f59e0b" />
+    <!-- Purple bar under Tio -->
+    <rect x="348" y="0" width="162" height="7" rx="3.5" fill="#581c87" />
+  </g>
+</svg>

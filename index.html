@@ -1,0 +1,2525 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FernanDiTio - Cuaderno Docente por Criterios</title>
+  <meta name="description" content="FernanDiTio - Cuaderno de evaluación docente por criterios y cálculo ponderado para ESO y Bachillerato." />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="FernanDiTio" />
+  <link rel="icon" type="image/png" sizes="64x64" href="/favicon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#18372a" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="FernanDiTio - Cuaderno Docente" />
+  <meta property="og:description" content="Cuaderno de evaluación docente por criterios y cálculo ponderado." />
+  <meta property="og:image" content="/pwa-512x512.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="FernanDiTio - Cuaderno Docente" />
+  <meta name="twitter:image" content="/pwa-512x512.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,700;0,900;1,900&display=swap" rel="stylesheet">
+  <script type="module" src="/src/rubricEngine.ts"></script>
+  <link rel="stylesheet" href="/src/index.css">
+</head>
+<body class="user-unauthenticated">
+  <div id="root"></div>
+  <!-- PANTALLA DE CARGA Y BIENVENIDA (SPLASH SCREEN) CON EL ICONO OFICIAL -->
+  <div id="splashScreen" style="position: fixed; inset: 0; z-index: 99999; background: #18372a; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.4s ease; color: #fff; text-align: center; padding: 20px;">
+    <div style="background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.18); padding: 32px 28px; border-radius: 24px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); max-width: 380px; width: 92%; backdrop-filter: blur(12px); display: flex; flex-direction: column; align-items: center;">
+      <img src="/icon.png" alt="FernanDiTio Logo" style="width: 140px; height: 140px; object-fit: contain; margin-bottom: 20px; filter: drop-shadow(0 8px 18px rgba(0,0,0,0.4)); border-radius: 22px; background: #fff; padding: 6px;" />
+      <h1 style="font-family: 'Montserrat', system-ui, sans-serif; font-size: 1.85rem; font-weight: 900; margin-bottom: 6px; letter-spacing: -0.5px; color: #ffffff;">FernanDiTio</h1>
+      <p style="font-size: 0.88rem; color: #a7f3d0; margin-bottom: 22px; font-weight: 500;">Cuaderno de Evaluación Docente por Criterios</p>
+      <div style="width: 100%; height: 5px; background: rgba(255,255,255,0.18); border-radius: 6px; overflow: hidden; position: relative;">
+        <div style="width: 50%; height: 100%; background: #34d399; border-radius: 6px; position: absolute; animation: splashLoading 1.2s infinite ease-in-out;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hover Trigger Zone for Top Header Reveal on Scroll -->
+  <div id="topHoverTrigger"></div>
+
+  <!-- HEADER -->
+  <header>
+    <div class="header-brand">
+      <div class="header-logo-card" title="FernanDiTio">
+        <img src="/Fernanditio.svg" alt="FernanDiTio" onError="this.onerror=null;this.src='/icon.png';" referrerPolicy="no-referrer" />
+      </div>
+    </div>
+
+    <div class="header-controls">
+      <div class="group-selector-wrap">
+        <select id="groupSelect" class="select-custom" onchange="app.cambiarGrupo(this.value)"></select>
+      </div>
+
+      <!-- Menú de Evaluación subido al menú superior entre el menú de curso y la información de conexión -->
+      <div class="eval-dropdown-wrap" id="evalDropdownWrapCuaderno" style="display: inline-flex; align-items: center;">
+        <select id="selectEvaluacionCuaderno" class="select-custom eval-select-box" onchange="app.cambiarEvaluacion(this.value)" title="Elegir Evaluación (1, 2 o 3)" aria-label="Elegir Evaluación">
+          <option value="eval1">Evaluación 1</option>
+          <option value="eval2">Evaluación 2</option>
+          <option value="eval3">Evaluación 3</option>
+        </select>
+      </div>
+
+      <!-- Indicador y botón de Nube / Móvil -->
+      <div id="cloudSyncHeader" style="display: flex; align-items: center;"></div>
+
+      <!-- Botón Abrir Fernanditio en ventana independiente -->
+      <button class="btn btn-sm" id="btnAbrirVentanaIndependienteHeader" onclick="window.open(window.location.href, '_blank')" title="Abrir Fernanditio en ventana independiente" aria-label="Abrir Fernanditio en ventana independiente" style="background: linear-gradient(135deg, #065f46, #047857); color: #ecfdf5; border: 1px solid #10b981; font-weight: 700; border-radius: 8px; padding: 4px 10px; cursor: pointer; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.15);">
+        <span>↗️</span><span class="btn-popout-text">Ventana independiente</span>
+      </button>
+
+      <!-- Botón Asistente Virtual -->
+      <button class="btn btn-sm" id="btnHeaderAsistente" onclick="app.alternarChatbot()" title="Abrir Asistente Virtual Fernanditio" aria-label="Asistente Virtual">
+        🤖
+      </button>
+
+      <!-- Botón para crear icono / instalar app en ordenador (solo en Configuración) -->
+      <button class="btn-desktop-icon" id="btnCrearIconoHeader" onclick="app.abrirModalIconoEscritorio()" style="display: none;" title="Crear icono de la aplicación en el Escritorio del ordenador">
+        💻 Crear Icono
+      </button>
+    </div>
+  </header>
+
+  <!-- SUB-BAR EVALUACIONES, VISTAS CENTRALES Y ACCIONES -->
+  <div class="eval-selector-bar">
+    <!-- Izquierda: Pestañas de evaluación para Resultados -->
+    <div class="eval-selector-left" id="evalSelectorLeft" style="display: flex; align-items: center;">
+      <div class="eval-tabs" id="evalTabsResultados" style="display: none;">
+        <button class="eval-tab active" id="tabEval1" onclick="app.cambiarEvaluacion('eval1')">Evaluación 1</button>
+        <button class="eval-tab" id="tabEval2" onclick="app.cambiarEvaluacion('eval2')">Evaluación 2</button>
+        <button class="eval-tab" id="tabEval3" onclick="app.cambiarEvaluacion('eval3')">Evaluación 3</button>
+        <button class="eval-tab final" id="tabFinal" onclick="app.cambiarEvaluacion('final')" style="display: none;">Final</button>
+      </div>
+    </div>
+
+    <!-- Centro: Selector de Vistas Principal (Actividades, Rúbricas, Filtro, Resultados y Configuración) -->
+    <div class="center-view-selector" id="mainViewSelector">
+      <button class="btn-center-view active" id="btnViewCuaderno" onclick="app.cambiarVista('cuaderno')" title="Ver actividades">
+        <span class="btn-icon">📝</span><span class="btn-text"> Actividades</span>
+      </button>
+      <button class="btn-center-view" id="btnViewRubricas" onclick="app.cambiarVista('rubricas')" title="Sistema de Rúbricas">
+        <span class="btn-icon">📋</span><span class="btn-text"> Rúbricas</span>
+      </button>
+      <button class="btn-center-view" id="btnDiario" onclick="app.abrirModalDiarioFiltros()" title="Filtrar actividades en orden cronológico">
+        <span class="btn-icon">🔍</span><span class="btn-text"> Filtro</span>
+      </button>
+      <button class="btn-center-view" id="btnViewResultados" onclick="app.cambiarVista('resultados')" title="Ver resultados y medias de criterios">
+        <span class="btn-icon">📊</span><span class="btn-text"> Resultados</span>
+      </button>
+      <button class="btn-center-view btn-config-blue" id="btnHeaderConfig" onclick="app.cambiarVista('configuracion')" title="Ajustes de grupos, criterios, secciones y copias">
+        <span class="btn-icon">⚙️</span><span class="btn-text"> Configuración</span>
+      </button>
+    </div>
+
+    <!-- Derecha: Acciones Rápidas del Cuaderno -->
+    <div style="display: flex; gap: 6px; align-items: center; flex-wrap: nowrap; flex-shrink: 0;" id="cuadernoQuickActions">
+        <button class="btn btn-secondary btn-sm" id="btnToggleOcultas" onclick="app.toggleMostrarOcultas()" style="display: none; padding: 3px 8px; font-size: 0.76rem;" title="Mostrar u ocultar actividades marcadas como ocultas">
+          👁️ Ver ocultas (0)
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" id="btnLimpiarFiltroDiario" onclick="app.limpiarFiltroDiarioColumnas()"
+                style="display: none; font-size: 0.76rem; padding: 3px 8px; font-weight: 700; background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; border-radius: 6px; cursor: pointer;"
+                title="Mostrar todas las columnas del cuaderno">
+          📋 Ver todas las columnas
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" id="btnLimpiarFiltroRubrica" onclick="app.limpiarFiltroRubricaColumnas()"
+                style="display: none; font-size: 0.76rem; padding: 3px 8px; font-weight: 700; background: #e0e7ff; color: #3730a3; border: 1px solid #c7d2fe; border-radius: 6px; cursor: pointer;"
+                title="Quitar filtro de rúbrica y mostrar todas las columnas del cuaderno">
+          📋 Ver todas las columnas (Rúbrica)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN VIEWS CONTAINER -->
+  <main>
+    
+    <!-- PÁGINA 1: ACTIVIDADES Y CALIFICACIONES -->
+    <div id="vistaCuaderno" class="view-panel active">
+      <!-- BARRA DE ACCIONES DE ACTIVIDADES SELECCIONADAS -->
+      <div id="barraAccionesActividades" class="actividades-action-bar" style="display: none;">
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+          <span style="font-weight: 700; color: #1e40af; font-size: 0.88rem;">
+            <span id="contadorSeleccionadas">0</span> seleccionada(s)
+          </span>
+          <button class="btn btn-danger btn-sm" onclick="app.solicitarEliminarActividadesSeleccionadas()" title="Eliminar las actividades seleccionadas">
+            🗑️ Eliminar actividad
+          </button>
+          <button class="btn btn-secondary btn-sm" id="btnOcultarSeleccionadas" onclick="app.alternarOcultarActividadesSeleccionadas()" title="Ocultar o desocultar actividades seleccionadas">
+            👁️ Ocultar / Desocultar actividad
+          </button>
+          <div style="display: flex; align-items: center; gap: 4px; background: #fff; padding: 2px 8px; border-radius: 6px; border: 1px solid #cbd5e1;">
+            <span style="font-size: 0.78rem; font-weight: 600; color: var(--text-muted);">Modo:</span>
+            <button class="btn btn-secondary btn-sm" onclick="app.cambiarModoActividadesSeleccionadas('numerica')" title="Calificación Numérica (0-10)">🔢 Numérica</button>
+            <button class="btn btn-secondary btn-sm" onclick="app.cambiarModoActividadesSeleccionadas('caritas')" title="Sistema de Caritas (10, 5, 0)">😁 Caritas</button>
+            <button class="btn btn-secondary btn-sm" onclick="app.cambiarModoActividadesSeleccionadas('rubrica')" title="Rúbrica">📋 Rúbrica</button>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="app.deseleccionarTodasActividades()">✕ Deseleccionar</button>
+        </div>
+      </div>
+
+      <div class="table-container" id="cuadernoTableContainer">
+        <table class="cuaderno-table" id="tablaCuaderno">
+          <thead id="tablaCuadernoHead"></thead>
+          <tbody id="tablaCuadernoBody"></tbody>
+        </table>
+      </div>
+      <div id="cuadernoVacio" style="display: none; padding: 40px; text-align: center; color: var(--text-muted);">
+        No hay actividades en esta evaluación. Pulsa en <strong>"+ Nueva Actividad"</strong> para comenzar.
+      </div>
+    </div>
+
+    <!-- PÁGINA 2: RESULTADOS -->
+    <div id="vistaResultados" class="view-panel">
+      <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+        <div>
+          <h2 style="font-size: 1.1rem; font-weight: 700;" id="resultadosTitulo">Calificación por Criterios de Evaluación</h2>
+          <p style="font-size: 0.8rem; color: var(--text-muted);">Cálculo exclusivo por criterio y media ponderada global. Notas inferiores a 5 en rojo.</p>
+        </div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button class="btn btn-sm" onclick="app.exportarResultadosExcel()" title="Exportar la tabla de resultados a formato Excel (.xlsx)" style="background: #16a34a; color: #ffffff; font-weight: 700; border: none; padding: 4px 10px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">📊 Exportar a Excel</button>
+          <button class="btn btn-secondary btn-sm" onclick="app.abrirMapaEvaluacion()" title="Ver mapa de evaluación por criterios">🗺️ Mapa de resultados</button>
+          <button class="btn btn-secondary btn-sm" onclick="app.abrirRevisionEvidencias()" title="Analizar número de evidencias por criterio">🔍 Evidencias</button>
+          <button class="btn btn-secondary btn-sm" onclick="window.print()">🖨️ Imprimir Resultados</button>
+        </div>
+      </div>
+
+      <!-- BARRA DE FILTRO DE ALUMNO EN RESULTADOS -->
+      <div id="barraFiltroAlumnoResultados" style="display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; background: #ffffff; padding: 6px 12px; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+          <label for="inputFiltroAlumnoResultados" style="font-weight: 700; font-size: 0.84rem; color: #1e293b; display: inline-flex; align-items: center; gap: 6px; user-select: none;">
+            <span style="font-size: 1rem;">🔍</span> <span>Filtro por alumno:</span>
+          </label>
+
+          <!-- Input de texto para buscar alumno por nombre o N.º -->
+          <div style="display: inline-flex; align-items: center; gap: 4px; position: relative;">
+            <input type="text" id="inputFiltroAlumnoResultados" placeholder="Buscar por nombre o N.º..."
+                   style="width: 180px; padding: 4px 8px; font-size: 0.84rem; font-weight: 600; color: #1e293b; background: #f8fafc; border: 1.5px solid #94a3b8; border-radius: 6px; outline: none; transition: border-color 0.15s ease;"
+                   oninput="app.filtrarResultadosPorAlumno(this.value)"
+                   onfocus="this.style.borderColor='#2563eb'" onblur="this.style.borderColor='#94a3b8'"
+                   title="Escribe un nombre o número para filtrar los alumnos en la vista de resultados" />
+          </div>
+
+          <!-- Selector desplegable para elegir un alumno directamente -->
+          <select id="selectFiltroAlumnoResultados" class="select-custom" style="padding: 4px 8px; font-size: 0.82rem; font-weight: 600; border-radius: 6px; max-width: 280px;"
+                  onchange="app.filtrarResultadosPorAlumno(this.value)" title="Selecciona un alumno de la lista">
+            <option value="">-- Todos los alumnos --</option>
+          </select>
+
+          <!-- Botón de limpiar filtro -->
+          <button type="button" class="btn btn-secondary btn-xs" id="btnLimpiarFiltroAlumnoResultados" onclick="app.limpiarFiltroAlumnoResultados()" style="display: none; font-size: 0.78rem; padding: 4px 8px; font-weight: 700; background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; border-radius: 6px; cursor: pointer;" title="Restablecer vista y mostrar todos los alumnos">
+            ✕ Ver todos
+          </button>
+
+          <!-- Mensaje informativo del filtro activo -->
+          <div id="badgeFiltroAlumnoResultadosInfo" style="font-size: 0.8rem; font-weight: 700; color: #1d4ed8; background: #dbeafe; padding: 2px 8px; border-radius: 5px; border: 1px solid #93c5fd; display: none;"></div>
+        </div>
+
+        <div style="font-size: 0.78rem; color: #64748b; font-weight: 600;">
+          👤 <span id="cantAlumnosFiltradosTxt">Mostrando todos los alumnos</span>
+        </div>
+      </div>
+
+      <div class="table-container" id="containerTablaResultados">
+        <table class="cuaderno-table" id="tablaResultados">
+          <thead id="tablaResultadosHead"></thead>
+          <tbody id="tablaResultadosBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- PÁGINA: SISTEMA DE RÚBRICAS -->
+    <div id="vistaRubricas" class="view-panel">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;">
+        <div>
+          <h2 style="font-size: 1.25rem; font-weight: 800; color: var(--text); margin-bottom: 4px;">📋 SISTEMA DE RÚBRICAS</h2>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0;">Creación, importación y aplicación de rúbricas organizadas por apartados y criterios de evaluación.</p>
+        </div>
+        <button class="btn btn-primary" onclick="app.abrirModalDiarioClase()" style="background: linear-gradient(135deg, #059669, #10b981); border: none; font-weight: 800; padding: 8px 18px; border-radius: 8px; color: white; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 6px rgba(16, 185, 129, 0.25); cursor: pointer;">
+          📖 Diario de Clase
+        </button>
+      </div>
+
+      <!-- LISTADO DE RÚBRICAS DISPONIBLES EN EL GRUPO (PARTE SUPERIOR) -->
+      <div style="margin-bottom: 28px;">
+        <h3 style="font-size: 1.05rem; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+          <span>📚 Rúbricas Creadas (mostrando las 3 últimas de <span id="countRubricasGrupo">0</span>)</span>
+          <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <button class="btn btn-primary btn-sm" onclick="app.abrirModalCatalogoRubricas()" style="font-weight: 700; background: linear-gradient(135deg, #1e40af, #2563eb); border: none; padding: 6px 14px; border-radius: 6px; color: white;">📖 Catálogo (<span id="countCatalogoBtnHeader">0</span>)</button>
+            <button class="btn btn-secondary btn-sm" id="btnToggleSelRubricasMain" onclick="app.alternarSeleccionTodasRubricas()">☑️ Seleccionar</button>
+            <button class="btn btn-danger btn-sm" id="btnEliminarRubricasSeleccionadasMain" onclick="app.solicitarEliminarRubricasSeleccionadas()" style="display: none;">🗑️ Eliminar Seleccionadas (<span id="countRubricasSelMain">0</span>)</button>
+          </div>
+        </h3>
+
+        <div id="listaRubricasSeccionPrincipal" style="display: flex; flex-direction: column; gap: 12px;"></div>
+      </div>
+
+      <!-- BOTONES DE GESTIONAR LOS DISTINTOS TIPOS DE RÚBRICAS (PARTE INFERIOR) -->
+      <div style="margin-top: 20px;">
+        <h3 style="font-size: 1.05rem; font-weight: 700; margin-bottom: 12px; color: var(--text);">
+          🛠️ Gestión por Tipos de Rúbrica
+        </h3>
+        <div class="rubricas-grid-4">
+          <div class="rubrica-main-card card-actividades" onclick="app.abrirVentanaRubricaTipo('actividades')">
+            <div class="card-icon">📝</div>
+            <div>
+              <h3>Actividades</h3>
+              <p>Mismo peso para todas las actividades. Calificación por botones 0, 3, 6, 10.</p>
+              <span class="card-btn-action">Gestionar Rúbrica de Actividades →</span>
+            </div>
+          </div>
+
+          <div class="rubrica-main-card card-examenes" onclick="app.abrirVentanaRubricaTipo('examen')">
+            <div class="card-icon">💯</div>
+            <div>
+              <h3>Exámenes</h3>
+              <p>Puntuación por pregunta variable (suma 10 pts). Entrada numérica directa.</p>
+              <span class="card-btn-action">Gestionar Rúbrica de Examen →</span>
+            </div>
+          </div>
+
+          <div class="rubrica-main-card card-trabajos" onclick="app.abrirVentanaRubricaTipo('trabajos')">
+            <div class="card-icon">📊</div>
+            <div>
+              <h3>Trabajos</h3>
+              <p>Pesos y porcentajes por aspecto. Calificación por botones 0, 3, 6, 10.</p>
+              <span class="card-btn-action">Gestionar Rúbrica de Trabajo →</span>
+            </div>
+          </div>
+
+          <div class="rubrica-main-card card-crear" onclick="app.abrirModalCrearRubricaPaso1()">
+            <div class="card-icon">➕</div>
+            <div>
+              <h3>Crear rúbrica</h3>
+              <p>Crear manualmente una nueva rúbrica sin importar archivo</p>
+              <span class="card-btn-action">Crear rúbrica manual →</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PÁGINA 3: CONFIGURACIÓN -->
+    <div id="vistaConfiguracion" class="view-panel">
+      <div class="config-nav" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button class="config-nav-btn active" onclick="app.cambiarSubConfig('cursos')">1. Grupos</button>
+          <button class="config-nav-btn" onclick="app.cambiarSubConfig('alumnos')">2. Alumnos</button>
+          <button class="config-nav-btn" onclick="app.cambiarSubConfig('criterios')">3. Criterios de Evaluación</button>
+          <button class="config-nav-btn" onclick="app.cambiarSubConfig('secciones')">4. Secciones</button>
+          <button class="config-nav-btn" onclick="app.cambiarSubConfig('rubricas')">5. Rúbricas</button>
+          <button class="config-nav-btn" onclick="app.cambiarSubConfig('copias')">6. Copia de Seguridad</button>
+          <button class="config-nav-btn" onclick="app.cambiarSubConfig('nube')">☁️ 7. Nube y Móvil</button>
+          <button class="config-nav-btn" onclick="app.cambiarSubConfig('ajustes')">📅 8. Calendario</button>
+          <button class="config-nav-btn" onclick="app.cambiarSubConfig('premios')">🏆 9. Premios</button>
+          <button class="config-nav-btn" onclick="app.cambiarSubConfig('camara')">📷 10. Cámara</button>
+        </div>
+      </div>
+
+      <!-- 1. Gestión de Grupos -->
+      <div id="cfgCursos" class="config-section active">
+        <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+          <button class="btn btn-warning" onclick="app.crearNuevoGrupo()">Crear nuevo grupo</button>
+          <button class="btn btn-gray" onclick="app.alternarOcultarGrupo()">Ocultar grupos</button>
+          <button class="btn btn-danger" onclick="app.solicitarEliminarGrupo()">Eliminar grupos</button>
+        </div>
+        <div class="alert-box alert-info">
+          Al seleccionar "Eliminar grupos", se eliminarán de forma irreversible todos los datos asociados: alumnos, actividades, calificaciones, criterios y rúbricas.
+        </div>
+        <div id="listaGruposCards"></div>
+
+        <!-- Apartado Grupos Vinculados para compartir plantillas de rúbricas -->
+        <div id="seccionGruposVinculados" style="margin-top: 28px;"></div>
+      </div>
+
+      <!-- 2. Gestión de Alumnos -->
+      <div id="cfgAlumnos" class="config-section">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button class="btn btn-primary btn-sm" onclick="app.modalAlumno()">+ Añadir Alumno</button>
+            <button class="btn btn-secondary btn-sm" onclick="app.modalImportarAlumnos()">📋 Importar de Word / Excel</button>
+            <button class="btn btn-secondary btn-sm" onclick="app.ordenarAlumnosAZ()">🔤 Ordenar A-Z</button>
+          </div>
+          <span style="font-size: 0.85rem; color: var(--text-muted);" id="recuentoAlumnos"></span>
+        </div>
+        <div id="listaAlumnos"></div>
+      </div>
+
+      <!-- 3. Gestión de Criterios -->
+      <div id="cfgCriterios" class="config-section">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+            <button class="btn btn-primary btn-sm" onclick="app.modalCriterio()">+ Nuevo Criterio</button>
+            <button class="btn btn-secondary btn-sm" onclick="app.modalImportarCriterios()">📋 Importar Criterios (Word/Excel)</button>
+            <button class="btn btn-secondary btn-sm" id="btnToggleSelCriterios" onclick="app.alternarSeleccionTodosCriterios()">☑️ Seleccionar Todos</button>
+            <button class="btn btn-danger btn-sm" id="btnEliminarCriteriosSeleccionados" onclick="app.solicitarEliminarCriteriosSeleccionados()" style="display: none;">🗑️ Eliminar Seleccionados (<span id="countCriteriosSel">0</span>)</button>
+          </div>
+          <span style="font-size: 0.85rem; color: var(--text-muted);" id="recuentoCriterios"></span>
+        </div>
+        <div class="alert-box alert-info">
+          Criterios oficiales de evaluación del curso. Puedes personalizar su código, descripción y ponderación (peso %).
+          <strong id="sumaPonderacionesCriteriosTxt" style="display: block; margin-top: 4px;"></strong>
+        </div>
+        <div id="listaCriterios"></div>
+      </div>
+
+      <!-- 4. Gestión de Secciones -->
+      <div id="cfgSecciones" class="config-section">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+            <button class="btn btn-primary btn-sm" onclick="app.abrirModalNuevaSeccion()">+ Nueva Sección</button>
+            <button class="btn btn-secondary btn-sm" onclick="app.asignarCriteriosASeccionesAuto()" title="Crea automáticamente una sección individual por cada criterio de este grupo">⚡ Asignar criterios</button>
+            <button class="btn btn-secondary btn-sm" id="btnToggleSelSecciones" onclick="app.alternarSeleccionTodasSecciones()">☑️ Seleccionar Todas</button>
+            <button class="btn btn-danger btn-sm" id="btnEliminarSeccionesSeleccionadas" onclick="app.solicitarEliminarSeccionesSeleccionadas()" style="display: none;">🗑️ Eliminar Seleccionadas (<span id="countSeccionesSel">0</span>)</button>
+          </div>
+        </div>
+        <div class="alert-box alert-info">
+          Existen secciones configuradas. Puedes personalizar su nombre, su ponderación (%) en la nota del criterio y su color identificativo.
+          <strong id="sumaPonderacionesTxt" style="display: block; margin-top: 4px;"></strong>
+        </div>
+        <div id="listaSeccionesConfig"></div>
+      </div>
+
+      <!-- 5. Gestión de Rúbricas -->
+      <div id="cfgRubricas" class="config-section">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+            <button class="btn btn-primary btn-sm" onclick="app.modalNuevaRubrica()">+ Crear Nueva Rúbrica</button>
+            <button class="btn btn-secondary btn-sm" onclick="app.modalImportarRubrica()">📥 Importar Rúbrica (JSON)</button>
+            <button class="btn btn-secondary btn-sm" id="btnToggleSelRubricas" onclick="app.alternarSeleccionTodasRubricas()">☑️ Seleccionar Todas</button>
+            <button class="btn btn-danger btn-sm" id="btnEliminarRubricasSeleccionadas" onclick="app.solicitarEliminarRubricasSeleccionadas()" style="display: none;">🗑️ Eliminar Seleccionadas (<span id="countRubricasSel">0</span>)</button>
+          </div>
+        </div>
+        <div id="listaRubricas"></div>
+      </div>
+
+      <!-- 6. Copias de Seguridad y Exportación -->
+      <div id="cfgCopias" class="config-section">
+        <div class="alert-box alert-info">
+          Exporta o importa el cuaderno completo en formato JSON para copias de seguridad, o genera un archivo CSV estructurado listo para ser abierto en <strong>Google Sheets</strong> o <strong>Excel</strong> con nombres, grupos, criterios/notas y resumen de puntos de comportamiento.
+        </div>
+        <div style="display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center;">
+          <button class="btn" onclick="app.exportarCSVGoogleSheets(false)" style="background: linear-gradient(135deg, #059669, #10b981); color: white; border: none; font-weight: 800; padding: 10px 18px; border-radius: 8px; box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3); cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-size: 0.9rem;">
+            📊 Exportar a Google Sheets (Todos los Grupos)
+          </button>
+          <button class="btn btn-secondary" onclick="app.exportarCSVGoogleSheets(true)" style="font-weight: 700; display: inline-flex; align-items: center; gap: 6px;">
+            📄 Exportar Google Sheets (Solo Grupo Activo)
+          </button>
+          <button class="btn btn-primary" onclick="app.descargarBackup()">💾 Descargar Copia JSON</button>
+          <label class="btn btn-secondary" style="cursor: pointer;">
+            📂 Restaurar Copia JSON
+            <input type="file" id="importJsonInput" accept=".json" style="display: none;" onchange="app.cargarBackup(event)">
+          </label>
+          <button class="btn btn-warning" onclick="app.restablecerDatosEjemplo()">🔄 Cargar Ejemplo 1º ESO (Castilla y León)</button>
+        </div>
+      </div>
+
+      <!-- 7. Sincronización en la Nube y Móvil -->
+      <div id="cfgNube" class="config-section">
+        <div class="alert-box alert-info" style="line-height: 1.5;">
+          <strong>☁️ Sincronización automática entre ordenadores y teléfono móvil</strong><br>
+          Conecta tu cuenta para que cualquier alumno, nota o actividad que modifiques se guarde al instante en la nube segura (Google Cloud Firestore). Podrás moverte de aula, abrir la app en el portátil de casa o en tu smartphone sin tener que exportar ni importar archivos a mano.
+        </div>
+
+        <div id="cfgNubeContenido" style="display: flex; flex-direction: column; gap: 16px;">
+          <!-- Contenido renderizado por app.renderizarConfiguracionNube() -->
+        </div>
+      </div>
+
+      <!-- 8. Ajustes y Periodos de Evaluación -->
+      <div id="cfgAjustes" class="config-section">
+        <div class="alert-box alert-info" style="line-height: 1.5; margin-bottom: 20px;">
+          <strong>📅 8. Calendario y Periodos de Evaluación</strong><br>
+          Configura el rango de fechas (Inicio y Fin) para cada evaluación del curso activo. Los campos son <strong>autoeditables</strong>: puedes escribir directamente o pulsar el icono del calendario para seleccionar la fecha. Todos los cambios se guardan automáticamente.
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+          <h3 style="font-size: 1.05rem; font-weight: 800; color: #1e293b; margin: 0;">
+            📅 Fechas del Calendario Escolar por Evaluación
+          </h3>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="app.establecerFechasCursoPredeterminadas()" title="Cargar automáticamente el calendario escolar estándar">
+            🗓️ Cargar Curso Estándar (2025-2026)
+          </button>
+        </div>
+
+        <div id="cfgAjustesContenido" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;">
+          <!-- Renderizado dinámicamente por renderizarAjustesEvaluaciones() -->
+        </div>
+      </div>
+
+      <!-- 9. Premios y Control de Comportamiento -->
+      <div id="cfgPremios" class="config-section">
+        <!-- SECCIÓN 1: CONTROL DE COMPORTAMIENTO E INCIDENCIAS -->
+        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; border-bottom: 2px solid #f1f5f9; padding-bottom: 12px;">
+            <div>
+              <h3 style="margin: 0; font-size: 1.15rem; color: #1e293b; display: flex; align-items: center; gap: 8px;">
+                <span>📊</span>
+                <span>Control de Comportamiento e Incidencias</span>
+              </h3>
+              <p style="margin: 4px 0 0 0; font-size: 0.82rem; color: #64748b;">
+                Puntuación acumulada, llamadas de atención, faltas leves, graves y amonestaciones escritas.
+              </p>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+              <div style="display: flex; align-items: center; gap: 6px; font-size: 0.85rem; background: #f8fafc; border: 1px solid #e2e8f0; padding: 5px 10px; border-radius: 8px;">
+                <label for="selectVencimientoPuntos" style="font-weight: 700; color: #334155; margin: 0;">⏱️ Vencimiento:</label>
+                <select id="selectVencimientoPuntos" onchange="app.cambiarVencimientoPuntos(this.value)" style="border: 1px solid #cbd5e1; border-radius: 6px; padding: 3px 8px; font-size: 0.82rem; background: white; font-weight: 600; cursor: pointer;">
+                  <option value="30d">Mensual (30 días)</option>
+                  <option value="90d">Trimestral (90 días)</option>
+                  <option value="evaluacion">Por Evaluación Activa</option>
+                  <option value="nunca">Acumulativo (Sin vencimiento)</option>
+                </select>
+              </div>
+              <button type="button" class="btn btn-danger btn-sm" onclick="app.reiniciarPuntosGrupo()" style="font-size: 0.8rem; font-weight: 700;">
+                🔄 Reset Puntos Grupo
+              </button>
+            </div>
+          </div>
+
+          <!-- TARJETAS DE MÉTRICAS GLOBALES DE CONDUCTA -->
+          <div id="metricasComportamientoGrupo" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px;">
+            <!-- Generado por app.renderizarDashboardComportamientoPremios() -->
+          </div>
+
+          <!-- TABLA DE ALUMNOS Y CONTROL DE CONDUCTA -->
+          <div style="overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 10px;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.88rem; text-align: left;">
+              <thead>
+                <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0; color: #475569; font-weight: 700;">
+                  <th style="padding: 10px 12px; width: 40px; text-align: center;">#</th>
+                  <th style="padding: 10px 12px;">Alumno/a</th>
+                  <th style="padding: 10px 12px; text-align: center;">Puntos Activos</th>
+                  <th style="padding: 10px 12px; text-align: center;">Estado / Marcador</th>
+                  <th style="padding: 10px 12px; text-align: center;">Desglose Faltas</th>
+                  <th style="padding: 10px 12px; text-align: right;">Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="tablaComportamientoAlumnosBody">
+                <!-- Generado por app.renderizarDashboardComportamientoPremios() -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- SECCIÓN 2: REGLAS DE PREMIOS Y AVISOS AUTOMÁTICOS -->
+        <div class="alert-box alert-info" style="line-height: 1.5; margin-bottom: 16px;">
+          <strong>🏆 Reglas de Premios y Avisos Automáticos por Calificaciones</strong><br>
+          Configura reglas automáticas para premiar buenas rachas de notas (ej. 10s seguidos) o alertar cuando se acumulan tareas sin entregar (ej. 0s seguidos).
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button type="button" class="btn btn-primary btn-sm" onclick="app.modalNuevoPremio()">
+              ➕ Añadir Nuevo Premio / Aviso
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="app.restablecerPremiosEjemplo()">
+              🔄 Restablecer Ejemplos
+            </button>
+          </div>
+          <span style="font-size: 0.85rem; color: var(--text-muted);" id="recuentoPremios"></span>
+        </div>
+
+        <div id="listaPremiosContenido" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px;">
+          <!-- Renderizado dinámicamente por app.renderizarListaPremios() -->
+        </div>
+      </div>
+
+      <!-- 10. Configuración de Cámara -->
+      <div id="cfgCamara" class="config-section">
+        <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 24px; max-width: 680px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; border-bottom: 2px solid #f1f5f9; padding-bottom: 14px;">
+            <div style="font-size: 2rem; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+              📷
+            </div>
+            <div>
+              <h3 style="margin: 0; font-size: 1.15rem; color: #1e293b;">Configuración de Permisos de Cámara</h3>
+              <p style="margin: 4px 0 0 0; font-size: 0.84rem; color: #64748b;">
+                Ajustes del aviso previo propio de Fernanditio antes de acceder a la cámara del dispositivo.
+              </p>
+            </div>
+          </div>
+
+          <div style="display: flex; align-items: center; justify-content: space-between; padding: 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; gap: 16px;">
+            <div>
+              <strong style="display: block; font-size: 0.95rem; color: #0f172a; margin-bottom: 4px;">
+                Mostrar de nuevo el aviso de acceso a la cámara
+              </strong>
+              <span style="font-size: 0.82rem; color: #475569; line-height: 1.4; display: block;">
+                Si esta casilla está desactivada, Fernanditio no volverá a mostrar la ventana informativa previa y accederá directamente a la cámara al fotografiar.
+              </span>
+            </div>
+            <label style="display: flex; align-items: center; cursor: pointer; user-select: none; flex-shrink: 0;">
+              <input type="checkbox" id="chkConfigMostrarAvisoCamara" onchange="app.toggleMostrarAvisoCamaraConfig(this.checked)" style="width: 20px; height: 20px; cursor: pointer; accent-color: #2563eb;" />
+            </label>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- MODAL: MENSAJE LOADING ESTILO WINDOWS 3.0 (PROCESANDO RÚBRICA CON IA) -->
+  <div class="win3-overlay" id="modalWindowsLoading" role="dialog" aria-modal="true" aria-labelledby="win3TitleText">
+    <div class="win3-window">
+      <!-- Barra de título Windows 3.0 -->
+      <div class="win3-titlebar">
+        <div class="win3-title-left">
+          <div class="win3-sysmenu-btn" title="Menú del Sistema">
+            <div class="win3-sysmenu-dash"></div>
+          </div>
+          <span class="win3-titlebar-text" id="win3TitleText">Loading</span>
+        </div>
+        <div class="win3-controls">
+          <div class="win3-ctrl-btn" title="Minimizar">▼</div>
+          <div class="win3-ctrl-btn" title="Maximizar">▲</div>
+        </div>
+      </div>
+
+      <!-- Cuerpo del diálogo Windows 3.0 -->
+      <div class="win3-client">
+        <div class="win3-content-row">
+          <!-- Icono reloj de arena pixel art animado -->
+          <div class="win3-icon-box">
+            <svg class="win3-hourglass-animated" width="36" height="36" viewBox="0 0 32 32" style="shape-rendering: crispEdges;">
+              <!-- Barras superior e inferior -->
+              <rect x="5" y="3" width="22" height="3" fill="#000000" />
+              <rect x="6" y="4" width="20" height="1" fill="#c0c0c0" />
+              <rect x="7" y="4" width="18" height="1" fill="#ffff00" />
+              <!-- Silueta del cristal -->
+              <rect x="6" y="6" width="20" height="1" fill="#000000" />
+              <rect x="7" y="7" width="18" height="1" fill="#000080" />
+              <rect x="8" y="8" width="16" height="1" fill="#000000" />
+              <rect x="9" y="9" width="14" height="1" fill="#000000" />
+              <rect x="10" y="10" width="12" height="1" fill="#000000" />
+              <rect x="11" y="11" width="10" height="1" fill="#000000" />
+              <rect x="12" y="12" width="8" height="1" fill="#000000" />
+              <rect x="13" y="13" width="6" height="1" fill="#000000" />
+              <rect x="14" y="14" width="4" height="4" fill="#000000" />
+              <rect x="13" y="18" width="6" height="1" fill="#000000" />
+              <rect x="12" y="19" width="8" height="1" fill="#000000" />
+              <rect x="11" y="20" width="10" height="1" fill="#000000" />
+              <rect x="10" y="21" width="12" height="1" fill="#000000" />
+              <rect x="9" y="22" width="14" height="1" fill="#000000" />
+              <rect x="8" y="23" width="16" height="1" fill="#000000" />
+              <rect x="7" y="24" width="18" height="1" fill="#000080" />
+              <rect x="6" y="25" width="20" height="1" fill="#000000" />
+              <rect x="5" y="26" width="22" height="3" fill="#000000" />
+              <rect x="6" y="27" width="20" height="1" fill="#c0c0c0" />
+              <rect x="7" y="27" width="18" height="1" fill="#ffff00" />
+              <!-- Relleno del cristal (cian / blanco) -->
+              <rect x="7" y="7" width="18" height="1" fill="#00ffff" />
+              <rect x="8" y="8" width="16" height="1" fill="#e0ffff" />
+              <rect x="9" y="9" width="14" height="1" fill="#e0ffff" />
+              <rect x="10" y="10" width="12" height="1" fill="#00ffff" />
+              <rect x="11" y="11" width="10" height="1" fill="#00ffff" />
+              <rect x="12" y="12" width="8" height="1" fill="#e0ffff" />
+              <rect x="13" y="13" width="6" height="1" fill="#00ffff" />
+              <rect x="14" y="14" width="4" height="4" fill="#00ffff" />
+              <rect x="13" y="18" width="6" height="1" fill="#00ffff" />
+              <rect x="12" y="19" width="8" height="1" fill="#e0ffff" />
+              <rect x="11" y="20" width="10" height="1" fill="#00ffff" />
+              <rect x="10" y="21" width="12" height="1" fill="#00ffff" />
+              <rect x="9" y="22" width="14" height="1" fill="#e0ffff" />
+              <rect x="8" y="23" width="16" height="1" fill="#00ffff" />
+              <rect x="7" y="24" width="18" height="1" fill="#00ffff" />
+              <rect x="8" y="8" width="2" height="3" fill="#ffffff" />
+              <rect x="9" y="21" width="2" height="3" fill="#ffffff" />
+              <!-- Arena dorada superior -->
+              <rect x="8" y="8" width="16" height="2" fill="#ffd700" />
+              <rect x="9" y="10" width="14" height="1" fill="#ffff00" />
+              <rect x="10" y="11" width="12" height="1" fill="#d4af37" />
+              <rect x="11" y="12" width="10" height="1" fill="#ffff00" />
+              <rect x="12" y="13" width="8" height="1" fill="#ffd700" />
+              <rect x="14" y="14" width="4" height="1" fill="#ffff00" />
+              <!-- Chorro de arena -->
+              <rect x="15" y="15" width="2" height="5" fill="#ffff00" />
+              <!-- Arena acumulada inferior -->
+              <rect x="15" y="20" width="2" height="1" fill="#ffd700" />
+              <rect x="13" y="21" width="6" height="1" fill="#ffff00" />
+              <rect x="11" y="22" width="10" height="1" fill="#ffd700" />
+              <rect x="9" y="23" width="14" height="1" fill="#d4af37" />
+              <rect x="8" y="24" width="16" height="1" fill="#ffd700" />
+            </svg>
+          </div>
+
+          <!-- Mensaje principal -->
+          <div class="win3-texts">
+            <div class="win3-main-heading" id="win3MainHeading">Loading...</div>
+            <div class="win3-desc" id="win3MainMsg">Fernanditio está procesando la rúbrica con Inteligencia Artificial...</div>
+            <div class="win3-desc" style="color: #444444;" id="win3SubMsg">Por favor, espere mientras se analizan los criterios y actividades.</div>
+          </div>
+        </div>
+
+        <!-- Barra de progreso segmentada 3D Windows 3.0 -->
+        <div class="win3-progress-container">
+          <div class="win3-progress-label">
+            <span>Progreso del procesamiento:</span>
+            <span id="win3ProgressPercent">0%</span>
+          </div>
+          <div class="win3-progress-track" id="win3ProgressTrack">
+            <!-- Bloques generados dinámicamente -->
+          </div>
+        </div>
+
+        <!-- Barra de estado hundida -->
+        <div class="win3-status-sunken">
+          <span id="win3StatusText">Iniciando conexión con Fernanditio AI...</span>
+          <span class="win3-status-badge">WIN 3.0</span>
+        </div>
+
+        <!-- Botón clásico 3D (deshabilitado/espera) -->
+        <div class="win3-button-bar">
+          <button type="button" class="win3-button win3-button-disabled" disabled>
+            Por favor, espere...
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: PROMPT PERSONALIZADO PARA ENTRADA DE TEXTO -->
+  <div class="modal-overlay" id="modalInputPrompt">
+    <div class="modal-card" style="max-width: 440px;">
+      <div class="modal-header">
+        <h3 id="modalInputPromptTitulo">Introduce los datos</h3>
+        <button class="close-modal" onclick="app.cerrarModal('modalInputPrompt')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="modalInputPromptMensaje" style="margin-bottom: 12px; font-size: 0.9rem; color: var(--text-dark);"></p>
+        <input type="text" id="modalInputPromptCampo" class="form-control" style="width: 100%; box-sizing: border-box;" />
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="app.cerrarModal('modalInputPrompt')">Cancelar</button>
+        <button class="btn btn-primary" id="btnInputPromptAceptar">Aceptar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CONFIRMACIÓN DE SEGURIDAD (REGLA FUNDAMENTAL) -->
+  <div class="modal-overlay" id="modalConfirmacion">
+    <div class="modal-card" style="max-width: 440px;">
+      <div class="modal-header" style="background: #fef2f2;">
+        <h3 style="color: #991b1b;">⚠️ Confirmación de Seguridad</h3>
+        <button class="close-modal" onclick="app.cerrarModal('modalConfirmacion')">&times;</button>
+      </div>
+      <div class="modal-body" id="modalConfirmacionTexto" style="line-height: 1.5;"></div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="app.cerrarModal('modalConfirmacion')">Cancelar</button>
+        <button class="btn btn-primary" id="btnConfirmarAccion" style="background-color: #2563eb; color: #ffffff; border: 1px solid #1d4ed8;">Aceptar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: NUEVA / EDITAR ACTIVIDAD -->
+  <div class="modal-overlay" id="modalActividad">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modalActividadTitulo">Nueva Actividad</h3>
+        <button class="close-modal" onclick="app.cerrarModal('modalActividad')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="actividadIdEdit">
+        <div class="form-group">
+          <label for="actSeccion">Sección:</label>
+          <select id="actSeccion" class="form-control" onchange="app.onCambioSeccionActividad(this.value)"></select>
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="flex: 2;">
+            <label for="actNombre">Nombre:</label>
+            <input type="text" id="actNombre" class="form-control" placeholder="Ej. Redacción descriptiva">
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label for="actTipo">Tipo:</label>
+            <select id="actTipo" class="form-control" style="font-weight: 700;">
+              <option value="Actividad">📝 Actividad</option>
+              <option value="Examen">📝 Examen</option>
+              <option value="Trabajo">📊 Trabajo</option>
+            </select>
+          </div>
+          <div class="form-group" style="flex: 1.2;">
+            <label for="actFecha">Fecha de realización:</label>
+            <input type="date" id="actFecha" class="form-control">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="actMetodo">Método de Calificación:</label>
+          <select id="actMetodo" class="form-control" onchange="app.onCambioMetodo(this.value)">
+            <option value="numerica">Calificación numérica (0 a 10)</option>
+            <option value="caritas">Sistema de caritas (10, 5, 0)</option>
+            <option value="rubrica">Rúbrica de evaluación</option>
+          </select>
+        </div>
+        <div class="form-group" id="wrapRubricaSelect" style="display: none;">
+          <label for="actRubricaId">Seleccionar Rúbrica:</label>
+          <select id="actRubricaId" class="form-control" onchange="app.onCambioRubricaSeleccionada(this.value)"></select>
+        </div>
+        <div class="form-group">
+          <label>Criterios de Evaluación asociados:</label>
+          <div id="criteriosCheckboxes" style="max-height: 150px; overflow-y: auto; border: 1px solid var(--border); padding: 8px; border-radius: 6px;"></div>
+          <small style="color: var(--text-muted);">En la sección "Otras" puedes asignar criterios propios.</small>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="app.cerrarModal('modalActividad')">Cancelar</button>
+        <button class="btn btn-primary" onclick="app.guardarActividad()">Guardar Actividad</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL PRINCIPAL: DIARIO DE ACTIVIDADES Y FILTROS -->
+  <div class="modal-overlay" id="modalDiarioFiltros">
+    <div class="modal-card" style="max-width: 680px; width: 95%;">
+      <div class="modal-header" style="background: linear-gradient(135deg, #1e3a8a, #2563eb); color: #ffffff; padding: 14px 20px; border-top-left-radius: 12px; border-top-right-radius: 12px;">
+        <h3 style="font-size: 1.15rem; font-weight: 800; margin: 0; display: flex; align-items: center; gap: 8px;">
+          <span>🔍 Filtro de Actividades</span>
+        </h3>
+        <button class="close-modal" onclick="app.cerrarModal('modalDiarioFiltros')" style="color: #ffffff; font-size: 1.4rem; opacity: 0.9;" title="Cerrar ventana">&times;</button>
+      </div>
+
+      <div class="modal-body" style="padding: 20px; display: flex; flex-direction: column; gap: 18px; background: #f8fafc;">
+        <!-- 1. Selección Múltiple de Periodos (Evaluaciones) -->
+        <div style="background: #ffffff; padding: 14px; border-radius: 10px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+          <label style="font-weight: 800; font-size: 0.88rem; color: #1e293b; display: block; margin-bottom: 8px;">
+            1. Periodo / Evaluación:
+          </label>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button type="button" class="btn-diario-pill" id="pillEv_eval1" onclick="app.togglePillDiario('pillEv_eval1')">1º Ev</button>
+            <button type="button" class="btn-diario-pill" id="pillEv_eval2" onclick="app.togglePillDiario('pillEv_eval2')">2º Ev</button>
+            <button type="button" class="btn-diario-pill" id="pillEv_eval3" onclick="app.togglePillDiario('pillEv_eval3')">3º Ev</button>
+            <button type="button" class="btn-diario-pill" id="pillEv_final" onclick="app.togglePillDiario('pillEv_final')">Final</button>
+          </div>
+          <div style="font-size: 0.75rem; color: #64748b; margin-top: 6px;">En blanco = todos los periodos. Si seleccionas en azul, se filtran. "Final" incluye Ev 1, Ev 2 y Ev 3.</div>
+        </div>
+
+        <!-- 2. Selección Múltiple de Tipo (Actividad / Examen / Trabajo) -->
+        <div style="background: #ffffff; padding: 14px; border-radius: 10px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+          <label style="font-weight: 800; font-size: 0.88rem; color: #1e293b; display: block; margin-bottom: 8px;">
+            2. Tipo de columna:
+          </label>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button type="button" class="btn-diario-pill" id="pillTipo_Actividad" onclick="app.togglePillDiario('pillTipo_Actividad')">📝 Actividad</button>
+            <button type="button" class="btn-diario-pill" id="pillTipo_Examen" onclick="app.togglePillDiario('pillTipo_Examen')">📝 Examen</button>
+            <button type="button" class="btn-diario-pill" id="pillTipo_Trabajo" onclick="app.togglePillDiario('pillTipo_Trabajo')">📊 Trabajo</button>
+          </div>
+          <div style="font-size: 0.75rem; color: #64748b; margin-top: 6px;">En blanco = todos los tipos. Si seleccionas en azul, se filtran los elegidos.</div>
+        </div>
+
+        <!-- 3. Rango de Fechas -->
+        <div style="background: #ffffff; padding: 14px; border-radius: 10px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+          <label style="font-weight: 800; font-size: 0.88rem; color: #1e293b; display: block; margin-bottom: 8px;">
+            3. Fecha:
+          </label>
+          <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-weight: 700; font-size: 0.82rem; color: #475569;">De:</span>
+              <input type="date" id="diarioFechaDesde" class="form-control" style="width: 140px; padding: 5px 8px; font-weight: 700;">
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-weight: 700; font-size: 0.82rem; color: #475569;">a:</span>
+              <input type="date" id="diarioFechaHasta" class="form-control" style="width: 140px; padding: 5px 8px; font-weight: 700;">
+            </div>
+            <button type="button" class="btn btn-secondary btn-xs" onclick="document.getElementById('diarioFechaDesde').value=''; document.getElementById('diarioFechaHasta').value='';" style="font-weight: 700; padding: 5px 10px;">Limpiar fechas</button>
+          </div>
+          <div style="font-size: 0.75rem; color: #64748b; margin-top: 6px;">
+            ℹ️ Si solo se rellena un campo, aparecerán las realizadas en esa fecha concreta. Si no se incluye fecha, se entenderá que es desde el 15/09.
+          </div>
+        </div>
+
+        <!-- 4 y 5. Ventanas Secundarias: Secciones y Alumnos -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px;">
+          <!-- 4. Secciones -->
+          <div style="background: #ffffff; padding: 14px; border-radius: 10px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 8px; justify-content: space-between;">
+            <div>
+              <label style="font-weight: 800; font-size: 0.88rem; color: #1e293b; display: block; margin-bottom: 4px;">
+                4. Secciones:
+              </label>
+              <div id="diarioSeccionesResumen" style="font-size: 0.8rem; font-weight: 700; color: #2563eb; background: #eff6ff; padding: 4px 8px; border-radius: 6px; border: 1px solid #bfdbfe;">
+                Todas las secciones
+              </div>
+            </div>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="app.abrirModalDiarioSecciones()" style="font-weight: 700; width: 100%;">
+              📂 Seleccionar Secciones...
+            </button>
+          </div>
+
+          <!-- 5. Alumnos -->
+          <div style="background: #ffffff; padding: 14px; border-radius: 10px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 8px; justify-content: space-between;">
+            <div>
+              <label style="font-weight: 800; font-size: 0.88rem; color: #1e293b; display: block; margin-bottom: 4px;">
+                5. Alumno:
+              </label>
+              <div id="diarioAlumnosResumen" style="font-size: 0.8rem; font-weight: 700; color: #2563eb; background: #eff6ff; padding: 4px 8px; border-radius: 6px; border: 1px solid #bfdbfe;">
+                Todos los alumnos
+              </div>
+            </div>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="app.abrirModalDiarioAlumnos()" style="font-weight: 700; width: 100%;">
+              👤 Seleccionar Alumnos...
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="background: #ffffff; padding: 14px 20px; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; display: flex; justify-content: space-between; align-items: center;">
+        <button class="btn btn-secondary" onclick="app.cerrarModal('modalDiarioFiltros')">Cancelar</button>
+        <button class="btn btn-primary" onclick="app.ejecutarBusquedaDiario()" style="font-weight: 800; font-size: 0.95rem; padding: 8px 22px; background: #2563eb;">
+          🔍 Buscar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUB-MODAL 4: SELECCIÓN MULTIPLE DE SECCIONES -->
+  <div class="modal-overlay" id="modalDiarioSecciones">
+    <div class="modal-card" style="max-width: 520px; width: 95%;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.05rem; font-weight: 800; margin: 0;">📂 Selección Múltiple de Secciones</h3>
+        <button class="close-modal" onclick="app.cerrarModal('modalDiarioSecciones')">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 16px;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+          <button type="button" class="btn btn-secondary btn-xs" onclick="app.seleccionarTodasSeccionesDiario(true)">Marcar todas</button>
+          <button type="button" class="btn btn-secondary btn-xs" onclick="app.seleccionarTodasSeccionesDiario(false)">Desmarcar todas</button>
+        </div>
+        <div id="contenedorListaSeccionesDiario" style="max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; background: #ffffff;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" onclick="app.confirmarSeleccionSeccionesDiario()">Confirmar Selección</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUB-MODAL 5: SELECCIÓN MULTIPLE DE ALUMNOS -->
+  <div class="modal-overlay" id="modalDiarioAlumnos">
+    <div class="modal-card" style="max-width: 560px; width: 95%;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.05rem; font-weight: 800; margin: 0;">👤 Selección Múltiple de Alumnos</h3>
+        <button class="close-modal" onclick="app.cerrarModal('modalDiarioAlumnos')">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 16px;">
+        <div style="display: flex; gap: 8px; margin-bottom: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap;">
+          <input type="text" id="inputBuscarAlumnoModalDiario" placeholder="Filtrar alumnos..." class="form-control" style="font-size: 0.82rem; padding: 4px 8px; max-width: 220px;" oninput="app.filtrarListaAlumnosModalDiario(this.value)">
+          <div style="display: flex; gap: 6px;">
+            <button type="button" class="btn btn-secondary btn-xs" onclick="app.seleccionarTodosAlumnosDiario(true)">Marcar todos</button>
+            <button type="button" class="btn btn-secondary btn-xs" onclick="app.seleccionarTodosAlumnosDiario(false)">Desmarcar todos</button>
+          </div>
+        </div>
+        <div id="contenedorListaAlumnosDiario" style="max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; background: #ffffff;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" onclick="app.confirmarSeleccionAlumnosDiario()">Confirmar Selección</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL DE RESULTADOS DEL DIARIO (CRONOLÓGICO) -->
+  <div class="modal-overlay" id="modalDiarioResultados">
+    <div class="modal-card" style="max-width: 950px; width: 98%; max-height: 92vh; display: flex; flex-direction: column;">
+      <div class="modal-header" style="background: #1e293b; color: #ffffff; padding: 14px 20px;">
+        <div>
+          <h3 style="font-size: 1.15rem; font-weight: 800; margin: 0;">📖 Registro Cronológico del Diario</h3>
+          <p id="diarioResultadosSubtitulo" style="font-size: 0.8rem; color: #94a3b8; margin: 2px 0 0 0;"></p>
+        </div>
+        <button class="close-modal" onclick="app.cerrarModal('modalDiarioResultados')" style="color: #ffffff;">&times;</button>
+      </div>
+
+      <div class="modal-body" id="diarioResultadosContenido" style="padding: 12px; overflow-y: auto; flex: 1; background: #f8fafc; display: flex; flex-direction: column; gap: 6px;"></div>
+
+      <div class="modal-footer" style="background: #ffffff; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-secondary btn-sm" onclick="app.imprimirDiarioResultados()">🖨️ Imprimir Diario</button>
+          <button class="btn btn-secondary btn-sm" onclick="app.exportarDiarioExcel()">📊 Exportar a Excel</button>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-primary btn-sm" onclick="app.verActividadesDiarioEnTabla()" style="background: #059669; font-weight: 800; font-size: 0.88rem;">📋 Ver columnas seleccionadas en formato tabla</button>
+          <button class="btn btn-secondary btn-sm" onclick="app.cerrarModal('modalDiarioResultados')">Cerrar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CALIFICAR CON RÚBRICA -->
+  <div class="modal-overlay" id="modalCalificarRubrica">
+    <div class="modal-card" style="max-width: 700px;">
+      <div class="modal-header">
+        <h3 id="rubricaEvalTitulo">Evaluar Rúbrica</h3>
+        <button class="close-modal" onclick="app.cerrarModal('modalCalificarRubrica')">&times;</button>
+      </div>
+      <div class="modal-body" id="rubricaEvalContenido"></div>
+      <div class="modal-footer" style="justify-content: space-between;">
+        <div>
+          <span style="font-weight: 700;">Nota calculada: </span>
+          <span id="rubricaNotaCalculada" style="font-size: 1.1rem; font-weight: 800; color: var(--primary);">0.0</span> / 10
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-secondary" onclick="app.cerrarModal('modalCalificarRubrica')">Cerrar</button>
+          <button class="btn btn-primary" onclick="app.guardarNotaRubrica()">Guardar Calificación</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: ALUMNO INDIVIDUAL -->
+  <div class="modal-overlay" id="modalAlumno">
+    <div class="modal-card" style="max-width: 440px;">
+      <div class="modal-header">
+        <h3 id="modalAlumnoTitulo">Añadir Alumno</h3>
+        <button class="close-modal" onclick="app.cerrarModal('modalAlumno')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="alumnoIdEdit">
+        <div class="form-group">
+          <label for="alumnoNombre">Apellidos y Nombre:</label>
+          <input type="text" id="alumnoNombre" class="form-control" placeholder="Ej. García López, María">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="app.cerrarModal('modalAlumno')">Cancelar</button>
+        <button class="btn btn-primary" onclick="app.guardarAlumno()">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: IMPORTAR ALUMNOS WORD/EXCEL -->
+  <div class="modal-overlay" id="modalImportAlumnos">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Importar Alumnos desde Word / Excel</h3>
+        <button class="close-modal" onclick="app.cerrarModal('modalImportAlumnos')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="margin-bottom: 8px; color: var(--text-muted); font-size: 0.85rem;">
+          Pega una columna o lista copiada desde Microsoft Word o Excel. Se creará automáticamente un alumno por línea evitando duplicados.
+        </p>
+        <textarea id="importAlumnosTexto" class="form-control" rows="8" placeholder="Juan Pérez&#10;María García&#10;Ana López"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="app.cerrarModal('modalImportAlumnos')">Cancelar</button>
+        <button class="btn btn-primary" onclick="app.ejecutarImportarAlumnos()">Importar Lista</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CRITERIO -->
+  <div class="modal-overlay" id="modalCriterio">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modalCriterioTitulo">Criterio de Evaluación</h3>
+        <button class="close-modal" onclick="app.cerrarModal('modalCriterio')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="criterioCodigoOriginal">
+        <div class="form-row">
+          <div class="form-group" style="flex: 1;">
+            <label for="critCodigo">Código:</label>
+            <input type="text" id="critCodigo" class="form-control" placeholder="Ej. 1.1">
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label for="critPond">Ponderación opcional (%):</label>
+            <input type="number" id="critPond" class="form-control" placeholder="Ej. 10" min="0" max="100" step="1">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="critDesc">Descripción oficial del criterio:</label>
+          <textarea id="critDesc" class="form-control" rows="4" placeholder="Comprende textos orales y escritos..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="app.cerrarModal('modalCriterio')">Cancelar</button>
+        <button class="btn btn-primary" onclick="app.guardarCriterio()">Guardar Criterio</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: REGLA DE PREMIO / AVISO -->
+  <div class="modal-overlay" id="modalPremio">
+    <div class="modal-card" style="max-width: 550px;">
+      <div class="modal-header">
+        <h3 id="modalPremioTituloHeader">🏆 Regla de Premio / Aviso</h3>
+        <button class="close-modal" onclick="app.cerrarModal('modalPremio')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="premioId">
+        <div class="form-group">
+          <label for="premioTitulo">Título de la regla:</label>
+          <input type="text" id="premioTitulo" class="form-control" placeholder="Ej. Tareas hechas 3 días seguidos (10 pts)">
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="flex: 1;">
+            <label for="premioTipo">Tipo de regla:</label>
+            <select id="premioTipo" class="form-control">
+              <option value="premio">🏆 Premio / Reconocimiento Positivo</option>
+              <option value="advertencia">⚠️ Aviso / Advertencia Tutores Legales</option>
+            </select>
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label for="premioPuntuacion">Puntuación / Nota exacta:</label>
+            <input type="number" id="premioPuntuacion" class="form-control" placeholder="10" min="0" max="10" step="0.1">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="flex: 1;">
+            <label for="premioDias">Días / Calificaciones seguidas:</label>
+            <input type="number" id="premioDias" class="form-control" placeholder="3" min="1" max="30" step="1">
+          </div>
+          <div class="form-group" style="flex: 1; display: flex; align-items: flex-end; padding-bottom: 8px;">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 700; user-select: none;">
+              <input type="checkbox" id="premioActivo" checked style="width: 18px; height: 18px; accent-color: #2563eb;">
+              <span>Regla activa</span>
+            </label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="premioMensaje">Mensaje de notificación que aparecerá:</label>
+          <textarea id="premioMensaje" class="form-control" rows="3" placeholder="Ej. ¡Premio! Tres días seguidos con las tareas hechas!"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="app.cerrarModal('modalPremio')">Cancelar</button>
+        <button class="btn btn-primary" onclick="app.guardarPremio()">Guardar Regla</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: VER PREMIOS DEL ALUMNO -->
+  <div class="modal-overlay" id="modalVerPremiosAlumno">
+    <div class="modal-card" style="max-width: 520px;">
+      <div class="modal-header">
+        <h3 id="modalVerPremiosAlumnoHeader">🏆 Premios y Avisos de Alumno</h3>
+        <button class="close-modal" onclick="app.cerrarModal('modalVerPremiosAlumno')">&times;</button>
+      </div>
+      <div class="modal-body" id="modalVerPremiosAlumnoBody" style="line-height: 1.5;">
+        <!-- Dynamic content -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" onclick="app.cerrarModal('modalVerPremiosAlumno')">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: NOTIFICACIÓN EN TIEMPO REAL -->
+  <div class="modal-overlay" id="modalNotifPremio">
+    <div class="modal-card" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3 id="modalNotifPremioHeader">🏆 Notificación</h3>
+        <button class="close-modal" onclick="app.cerrarModal('modalNotifPremio')">&times;</button>
+      </div>
+      <div class="modal-body" id="modalNotifPremioBody">
+        <!-- Content -->
+      </div>
+      <div class="modal-footer" style="justify-content: center;">
+        <button class="btn btn-primary" onclick="app.cerrarModal('modalNotifPremio')" style="min-width: 120px;">Entendido</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: IMPORTAR CRITERIOS WORD/EXCEL -->
+  <div class="modal-overlay" id="modalImportCriterios">
+    <div class="modal-card" style="max-width: 650px;">
+      <div class="modal-header">
+        <h3>Importar Criterios desde Word / Excel</h3>
+        <button class="close-modal" onclick="app.cerrarModal('modalImportCriterios')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="margin-bottom: 8px; color: var(--text-muted); font-size: 0.85rem;">
+          Pega una lista con código, descripción y ponderación. Admite tabuladores o punto y coma (;) como separadores:
+        </p>
+        <div style="background: #f1f5f9; padding: 6px 10px; border-radius: 6px; font-family: monospace; font-size: 0.8rem; margin-bottom: 10px;">
+          1.1; Comprende textos orales y escritos; 10<br>
+          1.2	Analiza textos	15
+        </div>
+        <textarea id="importCriteriosTexto" class="form-control" rows="8" placeholder="1.1; Comprende textos orales y escritos; 10"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="app.cerrarModal('modalImportCriterios')">Cancelar</button>
+        <button class="btn btn-primary" onclick="app.ejecutarImportarCriterios()">Importar Criterios</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: EDITAR SECCIÓN -->
+  <div class="modal-overlay" id="modalSeccion">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modalSeccionTitulo">Configurar Sección</h3>
+        <button class="close-modal" onclick="app.cerrarModal('modalSeccion')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="seccionIdxEdit">
+        <div class="form-group">
+          <label for="secNombre">Nombre de la Sección:</label>
+          <input type="text" id="secNombre" class="form-control">
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="flex: 1;">
+            <label for="secPonderacion">Ponderación (%):</label>
+            <input type="number" id="secPonderacion" class="form-control" min="0" max="100" readonly style="background: #f1f5f9; font-weight: 700;">
+            <small style="font-size: 0.75rem; color: var(--text-muted);">Suma automática de los criterios asignados.</small>
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label for="secColor">Color identificativo:</label>
+            <input type="color" id="secColor" class="form-control" style="height: 38px; padding: 2px;">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Criterios asignados a esta sección por defecto (su suma define el peso):</label>
+          <div id="secCriteriosChecks" style="max-height: 140px; overflow-y: auto; border: 1px solid var(--border); padding: 8px; border-radius: 6px;"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="app.cerrarModal('modalSeccion')">Cancelar</button>
+        <button class="btn btn-primary" onclick="app.guardarSeccion()">Guardar Configuración</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: SINCRONIZACIÓN EN LA NUBE Y MÓVIL -->
+  <div class="modal-overlay" id="modalNube">
+    <div class="modal-card" style="max-width: 580px;">
+      <div class="modal-header" style="background: #18372a; color: #fff;">
+        <h3 style="display: flex; align-items: center; gap: 8px;">
+          <span>☁️</span> Sincronización en la Nube y Móvil
+        </h3>
+        <button class="close-modal" onclick="app.cerrarModal('modalNube')" style="color: #cbd5e1;">&times;</button>
+      </div>
+      <div class="modal-body" id="modalNubeBody">
+        <!-- Renderizado dinámicamente por app.actualizarModalNube() -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="app.cerrarModal('modalNube')">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CONFIRMACIÓN SALIR DE LA APLICACIÓN -->
+  <div class="modal-overlay" id="modalSalirApp" style="z-index: 100000;">
+    <div class="modal-card" style="max-width: 420px; text-align: center; border-radius: 12px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1);">
+      <div class="modal-header" style="justify-content: center; background: #1e293b; color: #ffffff; padding: 16px 20px;">
+        <h3 style="font-size: 1.1rem; font-weight: 800; margin: 0; display: flex; align-items: center; justify-content: center; gap: 8px;">
+          <span>🚪 Salir de la Aplicación</span>
+        </h3>
+      </div>
+      <div class="modal-body" style="padding: 24px 20px; font-size: 1.05rem; font-weight: 600; color: #1e293b; line-height: 1.5; background: #ffffff;">
+        ¿Desea salir de la aplicación?
+      </div>
+      <div class="modal-footer" style="justify-content: center; gap: 12px; padding: 14px 20px; background: #f8fafc; border-top: 1px solid #e2e8f0;">
+        <button class="btn btn-secondary" onclick="app.cerrarModal('modalSalirApp')" style="font-weight: 700; min-width: 110px; padding: 8px 16px;">Cancelar</button>
+        <button class="btn btn-danger" onclick="app.confirmarSalirApp()" style="font-weight: 800; min-width: 110px; padding: 8px 16px; background: #dc2626; color: #ffffff; border: none; border-radius: 6px; cursor: pointer;">Sí, salir</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CREAR ICONO EN EL ORDENADOR (ESCRITORIO) -->
+  <div class="modal-overlay" id="modalIconoEscritorio">
+    <div class="modal-card" style="max-width: 620px;">
+      <div class="modal-header" style="background: #18372a; color: #fff;">
+        <h3 style="display: flex; align-items: center; gap: 10px;">
+          <span>💻</span> Crear icono de la aplicación en el ordenador
+        </h3>
+        <button class="close-modal" onclick="app.cerrarModal('modalIconoEscritorio')" style="color: #cbd5e1;">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 22px;">
+        <div style="display: flex; gap: 18px; align-items: center; background: #f8fafc; border: 1px solid #e2e8f0; padding: 16px; border-radius: 10px; margin-bottom: 20px;">
+          <img src="/icon.png" alt="Icono FernanDiTio" style="width: 76px; height: 76px; border-radius: 14px; box-shadow: 0 4px 10px rgba(0,0,0,0.15); border: 1px solid #e2e8f0; object-fit: cover;" />
+          <div style="flex: 1;">
+            <div style="font-weight: 800; font-size: 1.05rem; color: #0f172a; margin-bottom: 3px;">FernanDiTio - Cuaderno Docente</div>
+            <p style="font-size: 0.82rem; color: #64748b; line-height: 1.4; margin-bottom: 10px;">
+              ¡Sí, puedes tener el icono oficial en el Escritorio o la barra de tareas de tu PC o Mac y abrir el cuaderno a pantalla completa como un programa nativo!
+            </p>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <button id="btnInstalarPwaDirecto" class="btn btn-primary btn-sm" onclick="app.instalarAppEscritorio()" style="display: none; background: #15803d; border-color: #166534;">
+                ⚡ Instalar en 1 clic
+              </button>
+              <button type="button" class="btn btn-primary btn-sm" onclick="window.open(window.location.href, '_blank')" style="background: linear-gradient(135deg, #059669, #10b981); border: none; font-weight: 700;">
+                ↗️ Abrir Fernanditio en ventana independiente
+              </button>
+              <a href="/icon.png" download="FernanDiTio-Icono.png" class="btn btn-secondary btn-sm" style="text-decoration: none;">
+                📥 Descargar imagen del icono (.png)
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-bottom: 18px;">
+          <h4 style="font-size: 0.92rem; font-weight: 700; color: #0f172a; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+            <span>🌐</span> Método recomendado desde tu navegador (Windows / Mac):
+          </h4>
+
+          <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; margin-bottom: 12px;">
+            <div style="font-weight: 700; color: #1e40af; font-size: 0.88rem; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+              <span>🔴</span> Google Chrome:
+            </div>
+            <ol style="margin-left: 20px; font-size: 0.82rem; color: #334155; line-height: 1.6;">
+              <li>En la esquina superior derecha de Chrome, pulsa en el menú de los <strong>3 puntos verticales (⋮)</strong>.</li>
+              <li>Pasa el ratón por <strong>"Guardar y compartir"</strong> (o "Transmitir, guardar y compartir").</li>
+              <li>Haz clic en <strong>"Instalar FernanDiTio..."</strong> o <strong>"Crear acceso directo..."</strong>.</li>
+              <li>Marca la casilla <strong>"Abrir como ventana"</strong> y pulsa en <strong>Crear</strong>.</li>
+              <li>¡Listo! Se creará el acceso directo con el icono en tu <strong>Escritorio</strong> y en el <strong>menú de Inicio / Dock</strong>.</li>
+            </ol>
+          </div>
+
+          <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; margin-bottom: 12px;">
+            <div style="font-weight: 700; color: #0284c7; font-size: 0.88rem; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+              <span>🔵</span> Microsoft Edge:
+            </div>
+            <ol style="margin-left: 20px; font-size: 0.82rem; color: #334155; line-height: 1.6;">
+              <li>En la esquina superior derecha de Edge, haz clic en el menú <strong>(...)</strong>.</li>
+              <li>Selecciona <strong>"Aplicaciones"</strong> &gt; <strong>"Instalar este sitio como una aplicación"</strong>.</li>
+              <li>Comprueba el nombre ("FernanDiTio") y haz clic en <strong>Instalar</strong>.</li>
+              <li>Marca la casilla para anclarlo a la <strong>Barra de tareas</strong> o al <strong>Escritorio</strong>.</li>
+            </ol>
+          </div>
+
+          <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px 14px; font-size: 0.8rem; color: #166534; display: flex; align-items: center; gap: 8px;">
+            <span>💡</span>
+            <span>Al instalarla, la aplicación funciona de manera autónoma sin barras de navegación y con todas las notas guardadas y sincronizadas.</span>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="app.cerrarModal('modalIconoEscritorio')">Entendido / Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: HISTORIAL Y REGISTRO DE INCIDENCIAS DEL ALUMNO -->
+  <div class="modal-overlay" id="modalIncidenciasAlumno">
+    <div class="modal-card" style="max-width: 720px; width: 95%;">
+      <div class="modal-header" style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 14px 20px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 1.4rem;">📋</span>
+          <div>
+            <h3 id="modalIncidenciasAlumnoNombre" style="margin: 0; font-size: 1.1rem; color: #0f172a;">Control de Comportamiento</h3>
+            <span style="font-size: 0.8rem; color: #64748b;">Historial de conductas, llamadas de atención e incidencias</span>
+          </div>
+        </div>
+        <button class="close-modal" onclick="app.cerrarModal('modalIncidenciasAlumno')">&times;</button>
+      </div>
+
+      <div class="modal-body" style="padding: 20px; display: flex; flex-direction: column; gap: 18px; max-height: 75vh; overflow-y: auto;">
+        <input type="hidden" id="modalIncidenciasAlumnoId" />
+
+        <!-- TARJETA CABECERA: RESUMEN DE PUNTOS Y ESTADO DEL ALUMNO -->
+        <div id="modalIncidenciasResumenHeader" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 10px; padding: 14px 16px;">
+          <!-- Generado por app.renderizarModalIncidencias() -->
+        </div>
+
+        <!-- FORMULARIO: AÑADIR NUEVA CONDUCTA O INCIDENCIA -->
+        <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 10px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+          <h4 style="margin: 0 0 12px 0; font-size: 0.95rem; color: #1e293b; display: flex; align-items: center; gap: 6px;">
+            <span>➕</span> <span>Registrar Nueva Conducta / Incidencia</span>
+          </h4>
+
+          <!-- TIPO DE FALTA / CONDUCTA -->
+          <div style="margin-bottom: 12px;">
+            <label style="font-weight: 700; font-size: 0.85rem; color: #334155; display: block; margin-bottom: 6px;">Tipo de Registro y Puntos:</label>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px;">
+              <label style="display: flex; align-items: center; gap: 8px; background: #fef9c3; border: 1px solid #fef08a; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 700; color: #854d0e;">
+                <input type="radio" name="radioTipoIncidencia" value="leve" checked style="accent-color: #ca8a04;">
+                🟡 Falta Leve (+1 pt)
+              </label>
+              <label style="display: flex; align-items: center; gap: 8px; background: #ffedd5; border: 1px solid #fed7aa; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 700; color: #9a3412;">
+                <input type="radio" name="radioTipoIncidencia" value="grave" style="accent-color: #ea580c;">
+                🟠 Falta Grave (+2 pts)
+              </label>
+              <label style="display: flex; align-items: center; gap: 8px; background: #dcfce7; border: 1px solid #86efac; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 700; color: #166534;">
+                <input type="radio" name="radioTipoIncidencia" value="positiva" style="accent-color: #16a34a;">
+                🟢 Recuperación (-1 pt)
+              </label>
+            </div>
+          </div>
+
+          <!-- DESPLEGABLE DE MOTIVO Y FECHA -->
+          <div style="display: grid; grid-template-columns: 1fr 160px; gap: 10px; margin-bottom: 12px;">
+            <div>
+              <label for="selectMotivoIncidencia" style="font-weight: 700; font-size: 0.85rem; color: #334155; display: block; margin-bottom: 4px;">Motivo / Causa:</label>
+              <select id="selectMotivoIncidencia" class="form-control" style="font-size: 0.85rem; font-weight: 600;">
+                <option value="Interrupción reiterada de la clase">Interrupción reiterada de la clase</option>
+                <option value="Falta de material de trabajo">Falta de material de trabajo</option>
+                <option value="No realizar la tarea asignada">No realizar la tarea asignada</option>
+                <option value="Falta de respeto a compañeros o docente">Falta de respeto a compañeros o docente</option>
+                <option value="Uso inadecuado de móvil o dispositivos">Uso inadecuado de móvil o dispositivos</option>
+                <option value="Llegada tardía / Impuntualidad">Llegada tardía / Impuntualidad</option>
+                <option value="Pérdida de tiempo / Distracción constante">Pérdida de tiempo / Distracción constante</option>
+                <option value="Actitud positiva / Ayuda a compañeros">Actitud positiva / Ayuda a compañeros</option>
+                <option value="Trabajo o esfuerzo ejemplar en clase">Trabajo o esfuerzo ejemplar en clase</option>
+                <option value="Otro motivo">Otro motivo personalizado...</option>
+              </select>
+            </div>
+            <div>
+              <label for="inputFechaIncidencia" style="font-weight: 700; font-size: 0.85rem; color: #334155; display: block; margin-bottom: 4px;">Fecha:</label>
+              <input type="date" id="inputFechaIncidencia" class="form-control" style="font-size: 0.85rem;" />
+            </div>
+          </div>
+
+          <!-- OBSERVACIONES / COMENTARIO -->
+          <div style="margin-bottom: 12px;">
+            <label for="inputComentarioIncidencia" style="font-weight: 700; font-size: 0.85rem; color: #334155; display: block; margin-bottom: 4px;">Observación / Detalle opcional:</label>
+            <input type="text" id="inputComentarioIncidencia" class="form-control" placeholder="Ej. Avisado en segunda sesión, se compromete a traer la ficha mañana..." style="font-size: 0.85rem;" />
+          </div>
+
+          <button type="button" class="btn btn-primary btn-sm" onclick="app.guardarNuevaIncidenciaAlumno()" style="width: 100%; justify-content: center; font-weight: 800; padding: 9px;">
+            💾 Guardar Registro de Conducta
+          </button>
+        </div>
+
+        <!-- TABLA DE HISTORIAL DE REGISTROS -->
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <h4 style="margin: 0; font-size: 0.95rem; color: #1e293b; display: flex; align-items: center; gap: 6px;">
+              <span>📜</span> <span>Historial de Incidencias Registradas</span>
+            </h4>
+            <button type="button" class="btn btn-secondary btn-xs" onclick="app.reiniciarPuntosAlumnoActual()" style="color: #dc2626; border-color: #fca5a5;">
+              🔄 Reiniciar puntos de este alumno
+            </button>
+          </div>
+          <div id="containerHistorialIncidenciasAlumno">
+            <!-- Generado por app.renderizarModalIncidencias() -->
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="background: #f8fafc; border-top: 1px solid #e2e8f0;">
+        <button class="btn btn-secondary" onclick="app.cerrarModal('modalIncidenciasAlumno')">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CREAR / IMPORTAR RÚBRICA -->
+  <div class="modal-overlay" id="modalCrearImportarRubrica">
+    <div class="modal-card" style="max-width: 460px;">
+      <div class="modal-header">
+        <h3>📋 Crear / Importar Rúbrica</h3>
+        <button class="close-modal" onclick="app.cerrarModal('modalCrearImportarRubrica')">&times;</button>
+      </div>
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 12px; padding: 20px 0;">
+        <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 4px;">
+          Selecciona cómo deseas añadir la rúbrica a tu grupo de evaluación:
+        </p>
+        <button class="btn btn-primary" style="justify-content: center; padding: 12px; font-size: 0.95rem;" onclick="app.cerrarModal('modalCrearImportarRubrica'); app.modalNuevaRubrica();">
+          ➕ Crear Nueva Rúbrica desde cero
+        </button>
+        <button class="btn btn-secondary" style="justify-content: center; padding: 12px; font-size: 0.95rem;" onclick="app.cerrarModal('modalCrearImportarRubrica'); app.modalImportarRubrica();">
+          📥 Importar Rúbrica (JSON)
+        </button>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="app.cerrarModal('modalCrearImportarRubrica')">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CONFIGURAR RÚBRICA -->
+  <div class="modal-overlay" id="modalEditRubrica">
+    <div class="modal-card" style="max-width: 650px;">
+      <div class="modal-header">
+        <h3 id="modalEditRubricaTitulo">⚙️ Configuración de Rúbrica</h3>
+        <button class="close-modal" onclick="app.cerrarModal('modalEditRubrica')">&times;</button>
+      </div>
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px; max-height: 70vh; overflow-y: auto;">
+        <input type="hidden" id="editRubricaId" />
+        <div class="form-group">
+          <label for="editRubTitulo"><strong>Título de la Rúbrica:</strong></label>
+          <input type="text" id="editRubTitulo" class="form-control" placeholder="Ej. Redacción de texto argumentativo" />
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 180px; gap: 12px;">
+          <div class="form-group">
+            <label for="editRubDesc"><strong>Descripción:</strong></label>
+            <input type="text" id="editRubDesc" class="form-control" placeholder="Ej. Evaluación de expresión escrita" />
+          </div>
+          <div class="form-group">
+            <label for="editRubFechaCreacion"><strong>Fecha de creación:</strong></label>
+            <input type="date" id="editRubFechaCreacion" class="form-control" />
+          </div>
+        </div>
+        <div class="form-group" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px 14px;">
+          <label style="margin-bottom: 6px; display: block; font-size: 0.85rem;"><strong>Disponibilidad de la rúbrica:</strong></label>
+          <div style="display: flex; gap: 16px; flex-wrap: wrap;">
+            <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; cursor: pointer;">
+              <input type="radio" name="editRubDisponibilidad" id="editRubDispPrivada" value="privada" style="accent-color: #2563eb;" checked />
+              <span>🔒 Solo para este grupo</span>
+            </label>
+            <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; cursor: pointer;">
+              <input type="radio" name="editRubDisponibilidad" id="editRubDispCompartida" value="compartida" style="accent-color: #2563eb;" />
+              <span id="lblEditRubDispCompartida">🔗 Compartir con grupos vinculados</span>
+            </label>
+          </div>
+        </div>
+        <div style="border-top: 1px solid var(--border); padding-top: 12px; margin-top: 6px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <strong style="font-size: 0.9rem; color: #1e293b;">Aspectos a evaluar:</strong>
+            <button class="btn btn-secondary btn-sm" onclick="app.agregarAspectoEnModalRubrica()">+ Añadir Aspecto</button>
+          </div>
+          <div id="containerAspectosRubrica" style="display: flex; flex-direction: column; gap: 10px;"></div>
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+        <button type="button" class="btn" onclick="app.anadirRubricaADiarioClase()" style="background: linear-gradient(135deg, #059669, #10b981); color: white; border: none; font-weight: 800; padding: 8px 16px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 6px rgba(16, 185, 129, 0.25);" title="Añade esta actividad al Diario de clase en la fecha asignada">
+          📖 Añadir a Diario de clase
+        </button>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-secondary" onclick="app.cerrarModal('modalEditRubrica')">Cancelar</button>
+          <button class="btn btn-primary" onclick="app.guardarConfiguracionRubrica()">Guardar Cambios</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: VENTANA ESPECÍFICA DE TIPO DE RÚBRICA (ACTIVIDADES / EXAMEN / TRABAJO) -->
+  <div class="modal-overlay" id="modalVentanaRubricaTipo">
+    <div class="modal-card" style="max-width: 820px; width: 95%;">
+      <div class="modal-header" id="ventanaRubricaHeaderBar" style="padding: 16px 20px; border-bottom: 2px solid #e2e8f0;">
+        <div>
+          <h3 id="ventanaRubricaHeaderTitulo" style="font-size: 1.25rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+            📝 RÚBRICA DE ACTIVIDADES
+          </h3>
+          <p id="ventanaRubricaHeaderSub" style="font-size: 0.82rem; color: var(--text-muted); margin-top: 2px;">
+            Gestión independiente de rúbricas del curso
+          </p>
+        </div>
+        <button class="close-modal" onclick="app.cerrarModal('modalVentanaRubricaTipo')">&times;</button>
+      </div>
+
+      <div class="modal-body" style="padding: 20px;">
+        <!-- Banner de reglas del tipo -->
+        <div id="ventanaRubricaReglasBanner" style="border-radius: 10px; padding: 14px 18px; margin-bottom: 20px; font-size: 0.86rem; line-height: 1.5;"></div>
+
+        <!-- Listado de Rúbricas Guardadas de este Tipo (en la parte superior) -->
+        <div style="margin-bottom: 24px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+            <h4 style="font-size: 0.92rem; font-weight: 800; color: #0f172a; margin: 0;">
+              📚 Rúbricas Guardadas (<span id="ventanaRubricaCount">0</span>)
+            </h4>
+          </div>
+          <div id="ventanaRubricaListaItems" style="display: flex; flex-direction: column; gap: 10px; max-height: 380px; overflow-y: auto; padding-right: 4px;"></div>
+        </div>
+
+        <!-- Los 4 botones de origen / importación + Crear Manual (en la parte inferior) -->
+        <div>
+          <h4 style="font-size: 0.88rem; font-weight: 800; color: #334155; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px;">
+            ➕ Crear o Importar Nueva Rúbrica de este Tipo
+          </h4>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px;">
+            <button class="btn btn-primary" onclick="app.ejecutarAccionRubricaTipo('texto')" style="padding: 12px; font-weight: 700; display: flex; flex-direction: column; align-items: center; gap: 6px; background: #2563eb; border: none; border-radius: 8px; color: white; cursor: pointer; box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);">
+              <span style="font-size: 1.3rem;">📝</span>
+              <span style="font-size: 0.85rem;">Importar Texto / Doc</span>
+            </button>
+            <button class="btn btn-secondary" onclick="app.ejecutarAccionRubricaTipo('foto')" style="padding: 12px; font-weight: 700; display: flex; flex-direction: column; align-items: center; gap: 6px; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 8px; color: #1e293b; cursor: pointer;">
+              <span style="font-size: 1.3rem;">📷</span>
+              <span style="font-size: 0.85rem;">Fotografía / Cámara</span>
+            </button>
+            <button class="btn btn-secondary" onclick="app.ejecutarAccionRubricaTipo('ia')" style="padding: 12px; font-weight: 700; display: flex; flex-direction: column; align-items: center; gap: 6px; background: linear-gradient(135deg, #eff6ff, #dbeafe); border: 1.5px solid #93c5fd; border-radius: 8px; color: #1e40af; cursor: pointer;">
+              <span style="font-size: 1.3rem;">🤖</span>
+              <span style="font-size: 0.85rem;">IA / Gemini Engine</span>
+            </button>
+            <button class="btn btn-secondary" onclick="app.ejecutarAccionRubricaTipo('manual')" style="padding: 12px; font-weight: 700; display: flex; flex-direction: column; align-items: center; gap: 6px; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; color: #334155; cursor: pointer;">
+              <span style="font-size: 1.3rem;">✏️</span>
+              <span style="font-size: 0.85rem;">Creación Manual</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="justify-content: flex-end; background: #f8fafc; padding: 12px 20px;">
+        <button class="btn btn-secondary" onclick="app.cerrarModal('modalVentanaRubricaTipo')">Cerrar Ventana</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CREAR RÚBRICA CON GEMINI ENGINE (IA) -->
+  <div class="modal-overlay" id="modalGeminiEngineRubrica">
+    <div class="modal-card" style="max-width: 680px; width: 95%;">
+      <div class="modal-header" style="background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); color: white; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between;">
+        <div>
+          <h3 style="font-size: 1.15rem; font-weight: 800; display: flex; align-items: center; gap: 8px; margin: 0; color: white;">
+            <span>🤖</span> <span>Gemini Engine — Generador de Rúbricas</span>
+          </h3>
+          <p style="font-size: 0.8rem; margin: 2px 0 0 0; opacity: 0.9;">
+            Generación de propuesta de rúbrica a partir de instrucciones
+          </p>
+        </div>
+        <button class="close-modal" style="color: white; opacity: 0.8;" onclick="app.cerrarModal('modalGeminiEngineRubrica')">&times;</button>
+      </div>
+
+      <div class="modal-body" style="padding: 20px;">
+        <!-- Contexto del grupo y tipo -->
+        <div id="geminiEngineContextInfo" style="background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; font-size: 0.84rem;">
+          <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+            <span style="font-weight: 800; color: #1e40af;" id="geminiEngineCursoBadge">
+              📚 Curso: ...
+            </span>
+            <span style="font-weight: 800; color: #15803d;" id="geminiEngineTipoBadge">
+              🏷️ Tipo: ...
+            </span>
+            <span style="font-weight: 700; color: #475569;" id="geminiEngineCriteriosBadge">
+              📋 Criterios: ...
+            </span>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 16px;">
+          <label for="geminiEnginePromptInput" style="font-weight: 800; font-size: 0.88rem; display: block; margin-bottom: 6px; color: #1e293b;">
+            Indica los detalles o instrucciones acerca de la actividad, examen o trabajo:
+          </label>
+          <textarea 
+            id="geminiEnginePromptInput" 
+            class="form-control" 
+            rows="6" 
+            style="font-size: 0.86rem; line-height: 1.5; padding: 12px; border-radius: 8px;"
+            placeholder="Describe lo que pretendes realizar..."
+          ></textarea>
+        </div>
+
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; font-size: 0.78rem; color: #64748b; line-height: 1.45;">
+          💡 <strong>Nota:</strong> Fernanditio enviará tus instrucciones junto con los <strong>criterios de evaluación oficiales del curso</strong> a Gemini Engine para estructurar la propuesta de rúbrica.
+        </div>
+      </div>
+
+      <div class="modal-footer" style="justify-content: space-between; background: #f8fafc; padding: 12px 20px; display: flex; align-items: center;">
+        <button type="button" class="btn btn-secondary" onclick="app.cerrarModal('modalGeminiEngineRubrica')">Cancelar</button>
+        <button type="button" class="btn btn-primary" onclick="app.generarRubricaConGeminiPrompt()" style="background: linear-gradient(135deg, #2563eb, #1d4ed8); border: none; font-weight: 800; padding: 10px 20px; display: flex; align-items: center; gap: 8px;">
+          <span>✨</span> <span>Generar Rúbrica con Gemini</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: IMPORTACIÓN DE RÚBRICA (TEXTO PEGADO / ARCHIVO) -->
+  <div class="modal-overlay" id="modalImportarRubrica">
+    <div class="modal-card" style="max-width: 680px;">
+      <div class="modal-header">
+        <h3 id="modalImportRubricaTitulo">📥 Importar Rúbrica</h3>
+        <button class="close-modal" onclick="app.cerrarModal('modalImportarRubrica')">&times;</button>
+      </div>
+      <div class="modal-body">
+        
+        <!-- MÉTODO DE IMPORTACIÓN -->
+        <div style="margin-bottom: 16px;">
+          <label style="font-weight: 700; font-size: 0.9rem; margin-bottom: 8px; display: block; color: var(--text);">Método de Importación:</label>
+          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 12px;">
+            <button type="button" class="btn" id="btnOptImportArchivo" onclick="app.cambiarTabImportMetodo('archivo')" style="border: 1px solid #cbd5e1; background: #ffffff; color: #334155; font-weight: 700; padding: 12px 6px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 0.88rem;">
+              <span>📂</span> <span>Importar archivo</span>
+            </button>
+            <button type="button" class="btn" id="btnOptSacarFoto" onclick="app.abrirCapturaFotoRubrica('camara')" style="border: 1px solid #cbd5e1; background: #ffffff; color: #334155; font-weight: 700; padding: 12px 6px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 0.88rem;">
+              <span>📷</span> <span>Sacar foto</span>
+            </button>
+          </div>
+          <div style="text-align: right;">
+            <button type="button" class="btn btn-link" style="font-size: 0.78rem; color: #64748b; text-decoration: underline; background: none; border: none; cursor: pointer;" onclick="app.cambiarTabImportMetodo('texto')">
+              📋 O pegar texto plano directamente
+            </button>
+          </div>
+        </div>
+
+        <!-- Hidden File Inputs for Camera and Gallery -->
+        <input type="file" id="inputFotoCamara" accept="image/*" capture="environment" style="display: none;" onchange="app.onFotoCapturada(event)">
+        <input type="file" id="inputFotoGaleria" accept="image/*" style="display: none;" onchange="app.onFotoCapturada(event)">
+
+        <!-- SECCIÓN 1: PEGAR TEXTO -->
+        <div id="secImportTexto" style="display: none;">
+          <div class="form-group" style="margin-bottom: 10px;">
+            <label for="inputRubricaTituloPegado" style="font-weight: 600; font-size: 0.85rem;">Nombre / Título de la Rúbrica (Opcional):</label>
+            <input type="text" id="inputRubricaTituloPegado" class="form-control" placeholder="Ej. Examen Tema 3 - Sintaxis y Ortografía" />
+          </div>
+
+          <div class="form-group" style="margin-bottom: 10px;">
+            <label for="textareaRubricaTexto" style="font-weight: 600; font-size: 0.85rem;">Pegue aquí la rúbrica en formato estructurado:</label>
+            <textarea id="textareaRubricaTexto" class="form-control" rows="8" style="font-family: monospace; font-size: 0.82rem; line-height: 1.45; white-space: pre;" placeholder="Nº;Actividad;Criterio de evaluación&#10;&#10;1;Adjetivos en grado positivo (explicativos/especificativos);9.4&#10;2;Adverbios y preposiciones;9.4&#10;3;Identificación del sujeto (expreso, elíptico, impersonal);9.4&#10;4;Tipo de complemento: «agotados»;9.4&#10;5;Figuras de repetición en el poema;8.1&#10;6;CD / CI en sintagmas subrayados;9.4&#10;7;Ampliación de sintagmas nominales;5.3&#10;8;Formas no personales del verbo «vender»;9.4&#10;9;Oraciones con verbo predicativo y copulativo;5.3&#10;10;Ortografía y presentación;5.3"></textarea>
+          </div>
+
+          <div class="alert-box alert-info" style="font-size: 0.8rem; line-height: 1.45;">
+            💡 <strong>Formato de copia y pega recomendado:</strong> <code>Nº;Actividad;Criterio de evaluación</code><br>
+            El número representa el <strong>orden de la pregunta/actividad</strong> en el documento. Fernanditio vinculará los códigos de criterio (ej. <code>9.4</code>) con los criterios de evaluación del curso.
+          </div>
+
+          <div style="text-align: right; margin-top: 14px;">
+            <button type="button" class="btn btn-primary" onclick="app.procesarTextoPegadoRubrica()">
+              📋 Importar y comprobar →
+            </button>
+          </div>
+        </div>
+
+        <!-- SECCIÓN 2: IMPORTAR ARCHIVO -->
+        <div id="secImportArchivo">
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 14px; line-height: 1.5;">
+            Selecciona un archivo Word (<strong>.docx</strong>), Excel (<strong>.xlsx</strong>), <strong>.json</strong>, PDF o una imagen/foto de tu rúbrica.
+          </p>
+
+          <div style="border: 2px dashed #cbd5e1; background: #f8fafc; padding: 24px; text-align: center; border-radius: 10px; margin-bottom: 14px;">
+            <input type="file" id="inputRubricaArchivo" accept=".docx, .xlsx, .xls, .json, .pdf, image/*" style="display: none;" onchange="app.onArchivoSeleccionado(event)">
+            <button type="button" class="btn btn-primary" onclick="document.getElementById('inputRubricaArchivo').click()">
+              📂 Seleccionar archivo o imagen
+            </button>
+            <div id="lblRubricaArchivoInfo" style="font-size: 0.84rem; font-weight: 700; color: #1e40af; margin-top: 10px; display: none;"></div>
+            <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 8px;">Formatos permitidos: Word (.docx), Excel (.xlsx/.xls), JSON, PDF o Imagen (.png, .jpg, .jpeg)</div>
+          </div>
+
+          <div id="boxAccionesArchivo" style="display: flex; gap: 10px; justify-content: flex-end; display: none; margin-top: 12px;">
+            <button type="button" class="btn btn-secondary" onclick="app.procesarArchivoRubricaEstandar()">
+              ⚙️ Importar formato estándar
+            </button>
+            <button type="button" class="btn" onclick="app.procesarArchivoRubricaIA()" style="background: #2563eb; color: #ffffff; font-weight: 800; border: 1px solid #1d4ed8; padding: 10px 16px; border-radius: 8px; box-shadow: 0 4px 10px rgba(37,99,235,0.25);">
+              🔵 Procesar con Rúbrica IA
+            </button>
+          </div>
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="app.cerrarModal('modalImportarRubrica')">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: SOLICITUD DE PERMISO PARA FOTOGRAFÍAS -->
+  <div class="modal-overlay" id="modalPermisoCamara">
+    <div class="modal-card" style="max-width: 520px; padding: 0; overflow: hidden; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.3);">
+      <div class="modal-header" style="background: linear-gradient(90deg, #1e3a8a 0%, #2563eb 100%); color: #ffffff; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between;">
+        <h3 style="font-size: 1.1rem; font-weight: 800; margin: 0; display: flex; align-items: center; gap: 8px; color: #ffffff;">
+          <span>📷</span> Permiso para tomar fotografías
+        </h3>
+        <button type="button" class="close-modal" onclick="app.cerrarModal('modalPermisoCamara')" style="color: #ffffff; opacity: 0.9; font-size: 1.4rem; background: none; border: none; cursor: pointer;" title="Cerrar">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 20px 24px;">
+        <div style="display: flex; gap: 16px; align-items: flex-start; margin-bottom: 16px;">
+          <div style="font-size: 2.2rem; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px; width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+            📸
+          </div>
+          <div>
+            <h4 style="font-size: 0.96rem; font-weight: 800; color: #0f172a; margin: 0 0 6px 0;">Acceso a la cámara del dispositivo</h4>
+            <p style="font-size: 0.85rem; color: #475569; margin: 0; line-height: 1.5;">
+              Para fotografiar rúbricas, ejercicios o exámenes y analizarlos automáticamente con IA, Fernanditio requiere acceso a la cámara de tu dispositivo.
+            </p>
+          </div>
+        </div>
+
+        <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px 14px; margin-top: 14px;">
+          <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 0.86rem; font-weight: 700; color: #1e293b; user-select: none; margin: 0;">
+            <input type="checkbox" id="chkNoMostrarPermisoCamara" style="width: 18px; height: 18px; cursor: pointer; accent-color: #2563eb; flex-shrink: 0;" />
+            <span>No volver a mostrar</span>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer" style="padding: 12px 20px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 10px;">
+        <button type="button" class="btn btn-secondary" onclick="app.cerrarModal('modalPermisoCamara')" style="font-weight: 600; padding: 8px 16px;">
+          Cancelar
+        </button>
+        <button type="button" class="btn btn-primary" onclick="app.confirmarPermisoCamara()" style="background: #2563eb; color: #ffffff; font-weight: 800; padding: 8px 18px; border-radius: 6px; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+          <span>📸</span> <span>Permitir y abrir cámara</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: ERROR / INSTRUCCIONES DE PERMISO DE CÁMARA -->
+  <div class="modal-overlay" id="modalErrorCamara">
+    <div class="modal-card" style="max-width: 520px; padding: 0; overflow: hidden; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.3);">
+      <div class="modal-header" style="background: linear-gradient(90deg, #991b1b 0%, #dc2626 100%); color: #ffffff; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between;">
+        <h3 style="font-size: 1.1rem; font-weight: 800; margin: 0; display: flex; align-items: center; gap: 8px; color: #ffffff;" id="modalErrorCamaraTitulo">
+          <span>📷</span> Acceso a la cámara bloqueado
+        </h3>
+        <button type="button" class="close-modal" onclick="app.cerrarModal('modalErrorCamara')" style="color: #ffffff; opacity: 0.9; font-size: 1.4rem; background: none; border: none; cursor: pointer;" title="Cerrar">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 20px 24px;">
+        <p style="font-size: 0.9rem; color: #1e293b; margin-top: 0; font-weight: 600; line-height: 1.5;" id="modalErrorCamaraMensaje">
+          No se pudo abrir la cámara porque el permiso fue denegado en tu navegador o dispositivo.
+        </p>
+        <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 14px 16px; margin-top: 12px;">
+          <h5 style="margin: 0 0 8px 0; font-size: 0.85rem; font-weight: 800; color: #991b1b; text-transform: uppercase;">Pasos para solucionar el permiso:</h5>
+          <ol style="margin: 0; padding-left: 18px; font-size: 0.84rem; color: #7f1d1d; line-height: 1.6;" id="modalErrorCamaraPasos">
+            <li>Haz clic en el icono del candado 🔒 o de ajustes al lado de la dirección Web.</li>
+            <li>Busca la opción <strong>Cámara</strong> y selecciona <strong>Permitir</strong>.</li>
+            <li>Recarga la página o vuelve a pulsar en «Tomar fotografía».</li>
+          </ol>
+        </div>
+      </div>
+      <div class="modal-footer" style="padding: 12px 20px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+        <button type="button" class="btn btn-secondary" onclick="app.cerrarModal('modalErrorCamara'); app.abrirCapturaFotoRubrica('galeria');" style="font-size: 0.84rem; font-weight: 700; display: flex; align-items: center; gap: 6px;">
+          <span>📁</span> <span>Seleccionar foto de Galería</span>
+        </button>
+        <button type="button" class="btn btn-primary" onclick="app.cerrarModal('modalErrorCamara')" style="background: #dc2626; color: #ffffff; font-weight: 800; padding: 8px 18px; border-radius: 6px; border: none; cursor: pointer;">
+          Entendido
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: VISTA PREVIA Y RECORTE DE FOTOGRAFÍA -->
+  <div class="modal-overlay" id="modalPreviewFotoRubrica">
+    <div class="modal-card" style="max-width: 820px; max-height: 94vh; padding: 20px 24px; display: flex; flex-direction: column;">
+      <div class="modal-header" style="padding-bottom: 12px; margin-bottom: 10px; border-bottom: 1px solid #cbd5e1; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; flex-shrink: 0;">
+        <div>
+          <h3 style="font-size: 1.15rem; font-weight: 800; margin: 0; color: #0f172a; display: flex; align-items: center; gap: 8px;">
+            <span>✂️ Comprobar y Recortar Fotografía</span>
+            <span style="background: #e0f2fe; color: #0369a1; font-size: 0.75rem; font-weight: 800; padding: 2px 8px; border-radius: 6px; border: 1px solid #bae6fd;">Recorte activo por defecto</span>
+          </h3>
+          <p style="font-size: 0.8rem; color: #64748b; margin: 2px 0 0 0;">Ajusta los bordes o esquinas para recortar la rúbrica y pulsa «Aceptar foto» para continuar.</p>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <button type="button" class="btn btn-primary btn-sm" id="btnProcesarFotoConfirmadaHeader" onclick="app.procesarFotoConfirmadaIA()" style="background: #16a34a; color: #ffffff; font-weight: 800; border: 1px solid #15803d; padding: 7px 16px; border-radius: 8px; box-shadow: 0 2px 8px rgba(22, 163, 74, 0.3); font-size: 0.88rem; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;" title="Aceptar esta foto y analizar la rúbrica con IA">
+            <span>✅</span>
+            <span>Aceptar foto</span>
+          </button>
+          <button class="close-modal" onclick="app.cerrarModalPreviewFoto()" style="font-size: 1.4rem; cursor: pointer; color: #64748b;" title="Cerrar">&times;</button>
+        </div>
+      </div>
+
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 10px; overflow-y: auto; padding: 2px; flex: 1;">
+        <!-- Barra de herramientas de recorte y edición -->
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between;">
+          <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="app.aplicarRecorteFotoManual()" style="font-weight: 800; background: #0284c7; color: white; border: none; padding: 6px 12px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;" title="Recortar y fijar la selección en la vista previa">
+              ✂️ Aplicar Recorte
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="app.restablecerFotoOriginal()" style="font-weight: 600; padding: 6px 10px; border-radius: 6px;" title="Restablecer a la foto original completa">
+              🔄 Restablecer
+            </button>
+            <div style="height: 18px; width: 1px; background: #cbd5e1; margin: 0 2px;"></div>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="app.girarFoto(-90)" style="padding: 6px 9px; border-radius: 6px;" title="Girar 90° a la izquierda">
+              ↺ -90°
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="app.girarFoto(90)" style="padding: 6px 9px; border-radius: 6px;" title="Girar 90° a la derecha">
+              ↻ +90°
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="app.zoomFoto(0.1)" style="padding: 6px 9px; border-radius: 6px;" title="Acercar">
+              🔍+
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="app.zoomFoto(-0.1)" style="padding: 6px 9px; border-radius: 6px;" title="Alejar">
+              🔍-
+            </button>
+          </div>
+          <div style="display: flex; gap: 6px; align-items: center; font-size: 0.8rem;">
+            <span style="font-weight: 700; color: #475569;">Proporción:</span>
+            <select id="selectProporcionRecorte" onchange="app.cambiarProporcionRecorte(this.value)" style="padding: 4px 8px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 0.8rem; background: white;">
+              <option value="libre" selected>Libre (ajuste total)</option>
+              <option value="1">1:1 (Cuadrado)</option>
+              <option value="4/3">4:3 (Estándar)</option>
+              <option value="16/9">16:9 (Panorámico)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Contenedor del Cropper / Imagen -->
+        <div id="contenedorRecorteFoto" style="background: #0f172a; border-radius: 10px; min-height: 260px; max-height: 48vh; height: 380px; overflow: hidden; display: flex; justify-content: center; align-items: center; border: 1px solid #cbd5e1; position: relative;">
+          <img id="imgPreviewFotoTomada" src="" style="max-width: 100%; display: block;" alt="Vista previa para recortar" />
+        </div>
+
+        <!-- Notificación de estado de recorte -->
+        <div id="msgEstadoRecorte" style="font-size: 0.82rem; color: #166534; text-align: center; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 7px 12px;">
+          💡 La función de recorte está activa por defecto. Puedes encuadrar arrastrando las esquinas y pulsar <strong>«Aceptar foto»</strong>.
+        </div>
+      </div>
+
+      <!-- Footer fijo siempre visible con el botón para aceptar la foto -->
+      <div class="modal-footer" style="padding-top: 14px; margin-top: 10px; border-top: 1px solid #cbd5e1; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; flex-shrink: 0; background: #ffffff;">
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="app.cerrarModalPreviewFoto(); app.abrirCapturaFotoRubrica('camara');" style="font-size: 0.84rem;">
+            📷 Volver a hacer foto
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="app.cerrarModalPreviewFoto(); app.abrirCapturaFotoRubrica('galeria');" style="font-size: 0.84rem;">
+            🖼️ Seleccionar otra imagen
+          </button>
+        </div>
+        <div style="display: flex; gap: 10px; align-items: center;">
+          <button type="button" class="btn btn-secondary" onclick="app.cerrarModalPreviewFoto()" style="font-weight: 600; padding: 9px 16px;">
+            Cancelar
+          </button>
+          <button type="button" class="btn btn-primary" id="btnProcesarFotoConfirmada" onclick="app.procesarFotoConfirmadaIA()" style="background: #16a34a; color: #ffffff; font-weight: 800; border: 2px solid #15803d; padding: 10px 24px; border-radius: 8px; box-shadow: 0 4px 14px rgba(22, 163, 74, 0.35); font-size: 0.95rem; display: flex; align-items: center; gap: 8px; cursor: pointer;" title="Aceptar esta fotografía (o recorte) y analizar la rúbrica con Gemini IA">
+            <span style="font-size: 1.1rem;">✅</span>
+            <span>Aceptar foto</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: VISTA PREVIA Y VALIDACIÓN DE IMPORTACIÓN DE RÚBRICA -->
+  <div class="modal-overlay" id="modalPreviewImportRubrica">
+    <div class="modal-card" style="max-width: 980px; max-height: 92vh;">
+      <div class="modal-header">
+        <h3>👁️ Previsualización y Validación de Rúbrica Unificada</h3>
+        <button class="close-modal" onclick="app.cerrarModal('modalPreviewImportRubrica')">&times;</button>
+      </div>
+      <div class="modal-body" style="overflow-y: auto;">
+        <div style="display: flex; gap: 12px; margin-bottom: 14px; align-items: flex-end; flex-wrap: wrap;">
+          <div style="flex: 1; min-width: 250px;">
+            <label><strong>Nombre / Título de la Rúbrica:</strong></label>
+            <input type="text" id="previewRubricaTituloInput" class="form-control" placeholder="Ej. Examen Tema 1 - Comprensión y Gramática" />
+          </div>
+          <div>
+            <span id="previewRubricaTipoBadge" style="padding: 6px 12px; border-radius: 6px; font-weight: 700; font-size: 0.82rem; display: inline-block;"></span>
+          </div>
+        </div>
+
+        <!-- Disponibilidad de la rúbrica al importar -->
+        <div class="form-group" style="background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 10px 14px; margin-bottom: 14px;">
+          <label style="margin-bottom: 6px; display: block; font-size: 0.85rem; font-weight: 700; color: #1e293b;">
+            🌐 Disponibilidad de la rúbrica:
+          </label>
+          <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+            <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.86rem; cursor: pointer; font-weight: 500;">
+              <input type="radio" name="importRubDisponibilidad" id="importRubDispPrivada" value="privada" style="accent-color: #2563eb;" checked />
+              <span>🔒 Solo para este grupo</span>
+            </label>
+            <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.86rem; cursor: pointer; font-weight: 500;">
+              <input type="radio" name="importRubDisponibilidad" id="importRubDispCompartida" value="compartida" style="accent-color: #2563eb;" />
+              <span id="lblImportRubDispCompartida">🔗 Compartir con grupos vinculados</span>
+            </label>
+          </div>
+          <div style="font-size: 0.76rem; color: #64748b; margin-top: 4px;">
+            Al compartir, solo se compartirá la estructura de la rúbrica. Los alumnos, notas y evaluaciones son estrictamente privados e independientes en cada grupo.
+          </div>
+        </div>
+
+        <!-- BANNER DE REVISIÓN PEDAGÓGICA -->
+        <div style="background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; padding: 10px 14px; border-radius: 8px; margin-bottom: 14px; font-size: 0.84rem; display: flex; align-items: flex-start; gap: 10px;">
+          <span style="font-size: 1.2rem; line-height: 1;">🔍</span>
+          <div>
+            <strong>Revisión de actividades y criterios de evaluación:</strong> Revisa el listado de actividades y comprueba si los criterios asignados son aptos para las tareas propuestas. Puedes modificar cualquier criterio directamente en la tabla (si una actividad evalúa más de uno, indícalos en orden separados por <code>;</code>, ej. <code>1.1; 2.3</code>).
+          </div>
+        </div>
+
+        <!-- TARJETAS DE MÉTRICAS Y PRE-DETECCIÓN -->
+        <div id="previewMetricsGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 14px;">
+          <div style="background: #f8fafc; border: 1px solid #cbd5e1; padding: 10px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 0.75rem; color: #64748b; font-weight: 600;">ÍTEMS DETECTADOS</div>
+            <div id="metricItemsCount" style="font-size: 1.25rem; font-weight: 800; color: #1e293b;">0</div>
+          </div>
+          <div style="background: #f0fdf4; border: 1px solid #bbf7d0; padding: 10px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 0.75rem; color: #166534; font-weight: 600;">CRITERIOS DETECTADOS</div>
+            <div id="metricCriteriosCount" style="font-size: 1.25rem; font-weight: 800; color: #15803d;">0</div>
+          </div>
+          <div style="background: #fff7ed; border: 1px solid #fed7aa; padding: 10px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 0.75rem; color: #9a3412; font-weight: 600;">SIN CRITERIO</div>
+            <div id="metricSinCriterioCount" style="font-size: 1.25rem; font-weight: 800; color: #c2410c;">0</div>
+          </div>
+          <div style="background: #fef2f2; border: 1px solid #fecaca; padding: 10px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 0.75rem; color: #991b1b; font-weight: 600;">CRITERIOS NO ENCONTRADOS</div>
+            <div id="metricCriteriosMissingCount" style="font-size: 1.25rem; font-weight: 800; color: #dc2626;">0</div>
+          </div>
+        </div>
+
+        <div id="previewRubricaWarningsContainer"></div>
+
+        <datalist id="dlCriteriosGrupo"></datalist>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <strong style="font-size: 0.9rem;">Estructura e ítems extraídos (Orden original del documento):</strong>
+          <div style="display: flex; gap: 6px;">
+            <button class="btn btn-sm" onclick="app.agregarOrtografiaEnPreview()" style="background: #fdf2f8; color: #be185d; border: 1px solid #fbcfe8; font-weight: 700; padding: 3px 10px; border-radius: 6px; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 4px;" title="Añadir ítem de Ortografía">✍️ Evaluar Ortografía</button>
+            <button class="btn btn-secondary btn-sm" onclick="app.agregarFilaManualEnPreview()">+ Añadir Ítem</button>
+          </div>
+        </div>
+
+        <div class="table-container" style="max-height: 350px;">
+          <table class="cuaderno-table">
+            <thead>
+              <tr style="background: #f1f5f9;">
+                <th style="width: 85px; text-align: center;">Nº Actividad</th>
+                <th>Descripción / Ítem</th>
+                <th style="width: 140px;">Criterio</th>
+                <th style="width: 140px; text-align: center;">Estado</th>
+                <th style="width: 85px; text-align: center;">Peso (%)</th>
+                <th id="thPreviewMaxScore" style="width: 100px; text-align: center;">Puntos Máx.</th>
+                <th style="width: 50px; text-align: center;">Acción</th>
+              </tr>
+            </thead>
+            <tbody id="previewRubricaTbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div id="previewFooterSumIndicator" style="font-size: 0.9rem; font-weight: 700;"></div>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-secondary" onclick="app.cerrarModal('modalPreviewImportRubrica')">Cancelar</button>
+          <button class="btn btn-primary" id="btnConfirmarImportacionRubrica" onclick="app.confirmarImportacionRubrica()">✅ CONFIRMAR IMPORTACIÓN E INTEGRAR</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: MAPA DE EVALUACIÓN (ACTIVIDAD <-> CRITERIOS) -->
+  <div class="modal-overlay" id="modalMapaEvaluacion">
+    <div class="modal-card" style="max-width: 920px; max-height: 90vh;">
+      <div class="modal-header" style="background: #1e293b; color: #ffffff;">
+        <h3 style="display: flex; align-items: center; gap: 8px;">
+          <span>🗺️</span> Mapa de Evaluación (Actividad ↔ Criterios)
+        </h3>
+        <button class="close-modal" onclick="app.cerrarModal('modalMapaEvaluacion')" style="color: #cbd5e1;">&times;</button>
+      </div>
+      <div class="modal-body" style="overflow-y: auto;">
+        <!-- Pestañas internas del Mapa -->
+        <div class="config-nav" style="margin-bottom: 16px;">
+          <button class="config-nav-btn active" id="tabMapaActToCrit" onclick="app.cambiarTabMapaEvaluacion('actToCrit')">📝 ACTIVIDAD → CRITERIOS</button>
+          <button class="config-nav-btn" id="tabMapaCritToAct" onclick="app.cambiarTabMapaEvaluacion('critToAct')">🎯 CRITERIO → ACTIVIDADES</button>
+        </div>
+
+        <!-- VISTA 1: ACTIVIDAD -> CRITERIOS -->
+        <div id="vistaMapaActToCrit">
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">
+            Muestra la relación entre cada actividad, examen o trabajo registrado y los criterios de evaluación que alimenta.
+          </p>
+          <div class="table-container" style="max-height: 480px;">
+            <table class="cuaderno-table">
+              <thead>
+                <tr style="background: #f8fafc;">
+                  <th style="width: 130px;">Tipo</th>
+                  <th>Actividad / Evaluación</th>
+                  <th style="width: 140px;">Sección</th>
+                  <th>Criterios Asociados</th>
+                  <th style="width: 120px; text-align: center;">Evidencias (Notas)</th>
+                </tr>
+              </thead>
+              <tbody id="tablaMapaActToCritBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- VISTA 2: CRITERIO -> ACTIVIDADES -->
+        <div id="vistaMapaCritToAct" style="display: none;">
+          <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 16px; flex-wrap: wrap;">
+            <label style="font-weight: 700; color: #1e293b; font-size: 0.9rem;">Seleccionar Criterio:</label>
+            <select id="selectCritMapaEvaluacion" class="select-custom" style="flex: 1; min-width: 250px;" onchange="app.renderizarMapaCriterioAActividades(this.value)"></select>
+          </div>
+          <div id="detalleMapaCritToActContainer"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="app.cerrarModal('modalMapaEvaluacion')">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: REVISIÓN DE EVIDENCIAS Y COBERTURA DE CRITERIOS -->
+  <div class="modal-overlay" id="modalRevisionEvidencias">
+    <div class="modal-card" style="max-width: 860px; max-height: 90vh;">
+      <div class="modal-header" style="background: #0f172a; color: #ffffff;">
+        <h3 style="display: flex; align-items: center; gap: 8px;">
+          <span>🔍</span> Revisión de Cobertura de Criterios (Detección de Evidencias)
+        </h3>
+        <button class="close-modal" onclick="app.cerrarModal('modalRevisionEvidencias')" style="color: #cbd5e1;">&times;</button>
+      </div>
+      <div class="modal-body" style="overflow-y: auto;">
+        <div class="alert-box alert-info" style="margin-bottom: 16px;">
+          Esta herramienta analiza la distribución de evidencias en el cuaderno para garantizar la validez de la evaluación continua.
+        </div>
+
+        <div id="revisionEvidenciasStats" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 20px;"></div>
+
+        <h4 style="font-size: 0.95rem; font-weight: 800; color: #1e293b; margin-bottom: 10px;">Estado de Criterios en la Evaluación Activa:</h4>
+        <div id="revisionEvidenciasListado" style="display: flex; flex-direction: column; gap: 10px;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="app.cerrarModal('modalRevisionEvidencias')">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CONFLICTO DE SINCRONIZACIÓN EN LA NUBE -->
+  <div class="modal-overlay" id="modalConflictoSync">
+    <div class="modal-card" style="max-width: 650px;">
+      <div class="modal-header" style="background: #991b1b; color: #ffffff;">
+        <h3 style="display: flex; align-items: center; gap: 8px;">
+          <span>⚠️</span> Conflicto de Sincronización Detectado
+        </h3>
+        <button class="close-modal" onclick="app.cerrarModal('modalConflictoSync')" style="color: #fecaca;">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 20px;">
+        <div class="alert-box alert-warning" style="margin-bottom: 16px; font-size: 0.9rem;">
+          <strong>Existe una versión más reciente o diferente de este cuaderno en la nube.</strong><br>
+          <div style="margin-top: 6px; padding: 6px 10px; background: #fff3ed; border-radius: 6px; border: 1px solid #ffedd5; color: #9a3412; font-weight: 700; font-size: 0.84rem;">
+            📌 Último grupo afectado por la discrepancia: <span id="conflictoGrupoAfectadoNombre">-</span>
+          </div>
+          <span style="display: inline-block; margin-top: 6px;">Selecciona cómo deseas proceder para no perder información en tus dispositivos:</span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px;">
+          <div style="background: #f8fafc; border: 1px solid #cbd5e1; padding: 14px; border-radius: 8px;">
+            <h5 style="font-size: 0.88rem; font-weight: 800; color: #1e293b; margin-bottom: 6px;">💻 Versión Local (Este dispositivo)</h5>
+            <div id="conflictoFechaLocal" style="font-size: 0.8rem; color: #64748b; margin-bottom: 4px;">-</div>
+            <div id="conflictoInfoLocal" style="font-size: 0.82rem; font-weight: 600; color: #334155;">-</div>
+          </div>
+          <div style="background: #f0fdf4; border: 1px solid #bbf7d0; padding: 14px; border-radius: 8px;">
+            <h5 style="font-size: 0.88rem; font-weight: 800; color: #166534; margin-bottom: 6px;">☁️ Versión en la Nube (Firestore)</h5>
+            <div id="conflictoFechaNube" style="font-size: 0.8rem; color: #15803d; margin-bottom: 4px;">-</div>
+            <div id="conflictoInfoNube" style="font-size: 0.82rem; font-weight: 600; color: #14532d;">-</div>
+          </div>
+        </div>
+
+        <div id="conflictoDetalleComparacion" style="display: none; background: #fff7ed; border: 1px solid #fed7aa; padding: 12px; border-radius: 8px; font-size: 0.82rem; color: #9a3412; margin-bottom: 16px;"></div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap;">
+        <button class="btn btn-secondary btn-sm" onclick="app.alternarDetalleConflictoSync()">🔍 Comparar detalles</button>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-warning" onclick="app.resolverConflictoSync('local')">💻 Usar versión local</button>
+          <button class="btn btn-primary" onclick="app.resolverConflictoSync('remote')">☁️ Usar versión en la nube</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: EVALUACIÓN DE ALUMNO CON RÚBRICA -->
+  <div class="modal-overlay" id="modalEvaluarRubrica" style="overflow: hidden;">
+    <div class="modal-card" id="modalEvaluarRubricaCard" style="max-width: 980px; width: 96%; height: 94vh; max-height: 94vh; padding: 0; display: flex; flex-direction: column; overflow: hidden; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.3); position: relative;">
+      <!-- BORDE SUPERIOR FIJO: NOMBRE DEL ALUMNO EN UNA SOLA LÍNEA (SIEMPRE VISIBLE) -->
+      <div class="modal-header" id="evalRubricaHeaderFijo" style="position: sticky; top: 0; z-index: 100; flex-shrink: 0; width: 100%; padding: 8px 14px; border-bottom: 2px solid #1d4ed8; background: linear-gradient(90deg, #1e3a8a 0%, #2563eb 100%); color: #ffffff; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 48px; border-top-left-radius: 12px; border-top-right-radius: 12px; white-space: nowrap; box-sizing: border-box;">
+        
+        <!-- SECCIÓN ALUMNO: 1 SOLA LÍNEA CON NOMBRE, ESTADO, ORDEN Y NAVEGACIÓN (SIEMPRE VISIBLE) -->
+        <div id="evalRubricaHeaderAlumnoCard" style="display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1 1 auto; white-space: nowrap; overflow: hidden;">
+          <span style="font-size: 1.2rem; flex-shrink: 0;" title="Alumno evaluado">👤</span>
+          <span id="evalRubricaHeaderAlumnoNombre" style="font-size: 1.18rem; font-weight: 900; letter-spacing: 0.2px; color: #ffffff; text-shadow: 0 1px 2px rgba(0,0,0,0.35); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0;" title="Alumno evaluado">
+            Cargando...
+          </span>
+          <span id="evalRubricaHeaderAlumnoBadge" style="font-size: 0.72rem; font-weight: 800; padding: 2px 7px; border-radius: 4px; background: #ffffff; color: #1e3a8a; box-shadow: 0 1px 2px rgba(0,0,0,0.12); white-space: nowrap; flex-shrink: 0;">
+            -
+          </span>
+          <span id="evalRubricaHeaderAlumnoSub" style="font-size: 0.75rem; opacity: 0.95; font-weight: 700; color: #dbeafe; white-space: nowrap; flex-shrink: 0;">
+            -
+          </span>
+          <div id="evalRubricaHeaderNavBtns" style="display: inline-flex; gap: 4px; margin-left: 4px; flex-shrink: 0; align-items: center;">
+            <button type="button" class="btn btn-sm" style="background: rgba(255,255,255,0.22); color: #ffffff; border: 1px solid rgba(255,255,255,0.4); padding: 2px 7px; font-size: 0.74rem; font-weight: 700; border-radius: 5px; cursor: pointer; white-space: nowrap;" onclick="app.navegarAlumnoRubrica(-1)" title="Alumno anterior">⬅️ Ant.</button>
+            <button type="button" class="btn btn-sm" style="background: rgba(255,255,255,0.22); color: #ffffff; border: 1px solid rgba(255,255,255,0.4); padding: 2px 7px; font-size: 0.74rem; font-weight: 700; border-radius: 5px; cursor: pointer; white-space: nowrap;" onclick="app.navegarAlumnoRubrica(1)" title="Siguiente alumno">Sig. ➡️</button>
+          </div>
+        </div>
+
+        <!-- SECCIÓN DERECHA: TÍTULO DE LA RÚBRICA Y BOTÓN DE CIERRE -->
+        <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0; white-space: nowrap;">
+          <span id="evalRubricaHeaderTitulo" style="font-size: 0.75rem; font-weight: 700; color: #e0e7ff; background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.28); padding: 2px 7px; border-radius: 4px; white-space: nowrap; max-width: 180px; overflow: hidden; text-overflow: ellipsis;" title="Rúbrica activa">
+            📋 Rúbrica
+          </span>
+          <button type="button" class="close-modal" onclick="app.cerrarModal('modalEvaluarRubrica')" style="font-size: 1.5rem; padding: 0 4px; cursor: pointer; color: #ffffff; opacity: 0.9; line-height: 1; background: none; border: none; transition: opacity 0.15s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.9'" title="Cerrar modal">&times;</button>
+        </div>
+      </div>
+
+      <div class="modal-body" id="modalEvaluarRubricaBody" style="overflow-y: auto; flex: 1 1 0%; min-height: 0; max-height: 100%; padding: 12px 18px; -webkit-overflow-scrolling: touch;">
+        <!-- INFORMACIÓN SECUNDARIA Y CONFIGURACIÓN (DESAPARECE AL HACER SCROLL PARA DEDICAR MÁXIMO ESPACIO A LAS ACTIVIDADES) -->
+        <div id="evalRubricaStickyBar" style="position: relative; background: #f8fafc; border: 1px solid #cbd5e1; padding: 8px 12px; border-radius: 8px; margin-bottom: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px;">
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+              <div style="display: inline-flex; background: #e2e8f0; padding: 2px; border-radius: 6px; gap: 2px;">
+                <button id="btnRubricaModoUnico" class="btn btn-sm btn-primary active" style="padding: 3px 10px; font-size: 0.78rem; font-weight: 700;" onclick="app.setModoSeleccionAlumnoRubrica(false)">
+                  👤 Individual
+                </button>
+                <button id="btnRubricaModoMultiple" class="btn btn-sm btn-secondary" style="padding: 3px 10px; font-size: 0.78rem; font-weight: 700;" onclick="app.setModoSeleccionAlumnoRubrica(true)">
+                  👥 Múltiple
+                </button>
+              </div>
+              <button class="btn btn-sm" onclick="app.agregarYEvaluarOrtografiaEnEvaluacion()" style="background: #fdf2f8; color: #be185d; border: 1px solid #fbcfe8; font-weight: 700; padding: 3px 10px; border-radius: 6px; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 4px;" title="Añadir ítem de Ortografía">
+                ✍️ Evaluar Ortografía
+              </button>
+              <div id="evalRubricaHeaderSub" style="font-size: 0.8rem;"></div>
+            </div>
+
+            <!-- Opciones de Avance Continuo (Siguiente Alumno, Solo Pendientes & Alumno Aleatorio) -->
+            <div id="contenedorOpcionesAvanceRubrica" style="display: flex; align-items: center; gap: 8px; background: #ffffff; border: 1px solid #bfdbfe; padding: 3px 8px; border-radius: 6px; flex-wrap: wrap;">
+              <label style="display: inline-flex; align-items: center; gap: 5px; font-size: 0.78rem; font-weight: 700; color: #1e40af; cursor: pointer; user-select: none;" title="Al guardar, abre automáticamente la evaluación del siguiente alumno">
+                <input type="checkbox" id="chkAutoSiguienteAlumno" onchange="app.toggleAutoSiguienteAlumno(this.checked)" style="cursor: pointer; width: 14px; height: 14px; accent-color: #2563eb;" />
+                <span>➡️ Siguiente</span>
+              </label>
+
+              <label id="lblSoloPendientesContainer" style="display: inline-flex; align-items: center; gap: 5px; font-size: 0.78rem; font-weight: 700; color: #1e40af; cursor: pointer; user-select: none;" title="Saltar alumnos que ya tienen nota registrada y evaluar solo sin evaluar">
+                <input type="checkbox" id="chkSoloPendientes" onchange="app.toggleSoloPendientes(this.checked)" style="cursor: pointer; width: 14px; height: 14px; accent-color: #2563eb;" />
+                <span>⏳ Solo pendientes</span>
+              </label>
+
+              <button id="btnAlumnoAleatorio" class="btn btn-sm" style="padding: 2px 8px; font-size: 0.76rem; font-weight: 700; background: #2563eb; color: #ffffff; border: none; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 3px;" onclick="app.toggleModoAlumnoAleatorio()" title="Activar/desactivar modo Alumno Aleatorio">
+                🎲 Aleatorio
+              </button>
+            </div>
+
+            <div id="evalRubricaSubheadInfo" style="font-size: 0.8rem; font-weight: 700; color: #1e40af;"></div>
+          </div>
+
+          <!-- Selector rápido para cambiar alumno en modo individual -->
+          <div id="contenedorRubricaAlumnoUnico" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; background: #ffffff; padding: 6px 10px; border-radius: 6px; border: 1px solid #e2e8f0;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 0.78rem; color: #64748b; font-weight: 700;">Cambiar alumno:</span>
+              <select id="evalRubricaAlumnoSelect" class="select-custom" style="min-width: 220px; padding: 4px 8px; font-size: 0.82rem; font-weight: 700; border: 1.5px solid #cbd5e1; border-radius: 6px;" onchange="app.cargarEvaluacionRubricaAlumno(this.value)"></select>
+            </div>
+            <div id="evalRubricaDestacadoBadge" style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem;">
+              <span id="evalRubricaDestacadoNum" style="background: #2563eb; color: #ffffff; font-size: 0.74rem; font-weight: 800; padding: 1px 6px; border-radius: 4px;">#1</span>
+              <span id="evalRubricaDestacadoNombre" style="font-weight: 800; color: #0f172a;">Nombre Alumno</span>
+              <span id="evalRubricaDestacadoEstado" style="font-size: 0.72rem; font-weight: 800; padding: 1px 6px; border-radius: 4px;">⏳ Pendiente</span>
+            </div>
+          </div>
+
+          <!-- Barra de ayuda directa para Modo Examen -->
+          <div id="evalRubricaExamenHelperBar" style="display: none; margin-top: 6px; background: #faf5ff; border: 1.5px solid #d8b4fe; border-radius: 6px; padding: 5px 10px; font-size: 0.78rem; color: #581c87; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 6px; font-weight: 700;">
+              <span>⌨️</span>
+              <span><strong>Modo Examen:</strong> Escribe la nota numérica directamente. Pulsa <strong>[Enter]</strong> para pasar a la siguiente pregunta y al siguiente alumno.</span>
+            </div>
+            <span style="font-size: 0.72rem; color: #6b21a8; background: #f3e8ff; border: 1px solid #d8b4fe; padding: 2px 7px; border-radius: 4px; font-weight: 800; white-space: nowrap;">
+              [Enter] = Siguiente • Clic = Escribir directo
+            </span>
+          </div>
+
+          <!-- Vista Modo Múltiple -->
+          <div id="contenedorRubricaAlumnosMultiple" style="display: none; flex-direction: column; gap: 6px; margin-top: 6px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
+              <span style="font-size: 0.8rem; font-weight: 700; color: #1e40af;">
+                Selecciona los alumnos a los que se aplicará esta misma calificación:
+              </span>
+              <div style="display: flex; gap: 6px;">
+                <button class="btn btn-secondary btn-sm" style="padding: 2px 7px; font-size: 0.74rem;" onclick="app.seleccionarTodosAlumnosRubrica(true)">☑️ Seleccionar Todos</button>
+                <button class="btn btn-secondary btn-sm" style="padding: 2px 7px; font-size: 0.74rem;" onclick="app.seleccionarTodosAlumnosRubrica(false)">☐ Deseleccionar Todos</button>
+              </div>
+            </div>
+            <div id="evalRubricaGridAlumnosMultiple" style="display: flex; flex-direction: column; gap: 4px; max-height: 140px; overflow-y: auto; background: #ffffff; padding: 6px; border: 1px solid #bfdbfe; border-radius: 6px;"></div>
+          </div>
+        </div>
+
+        <!-- CONTENEDOR PRINCIPAL: ACTIVIDADES QUE SE EVALÚAN (MAYOR ESPACIO) -->
+        <div id="evalRubricaBodyItems" style="margin-bottom: 12px;"></div>
+
+        <!-- Resumen de Notas por Criterio -->
+        <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; margin-top: 8px;">
+          <h4 style="font-size: 0.82rem; font-weight: 800; color: var(--text); margin-bottom: 6px;">📊 Resumen de Notas por Criterio (Escala 0-10)</h4>
+          <div id="evalRubricaResumenCriterios" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px;"></div>
+          <div style="border-top: 1px solid var(--border); padding-top: 6px; font-weight: 800; font-size: 0.9rem; display: flex; justify-content: space-between; align-items: center;">
+            <span>Nota Global Ponderada de la Rúbrica:</span>
+            <span id="evalRubricaNotaGlobal" style="color: var(--primary); font-size: 1.15rem;">-</span>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="padding: 10px 18px; border-top: 1px solid #cbd5e1; background: #f8fafc; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; flex-shrink: 0;">
+        <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+          <button class="btn btn-secondary btn-sm" onclick="app.anularLimpiarEvaluacionRubricaAlumno()" style="font-weight: 700; font-size: 0.78rem; padding: 5px 12px; color: #7f1d1d; background: #fef2f2; border: 1px solid #fecaca;" title="Anular todas las calificaciones de este alumno y dejarlo como Pendiente de evaluar">
+            🧹 Anular / Limpiar evaluación (Pendiente)
+          </button>
+          <button class="btn btn-danger btn-sm" onclick="app.ponerCeroTodasActividadesRubrica()" style="font-weight: 700; font-size: 0.78rem; padding: 5px 12px;" title="Asignar nota 0 a todas las actividades de esta rúbrica">
+            ⭕ Poner 0 en todas las actividades
+          </button>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button class="btn btn-secondary btn-sm" onclick="app.cerrarModal('modalEvaluarRubrica')" style="padding: 6px 14px; font-weight: 700;">Cerrar</button>
+          <button class="btn btn-primary btn-sm" id="btnGuardarRubricaAlumno" onclick="app.guardarEvaluacionRubricaAlumno()" style="padding: 6px 16px; font-weight: 800;">💾 Guardar Calificación del Alumno</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CATÁLOGO COMPLETO DE RÚBRICAS -->
+  <div class="modal-overlay" id="modalCatalogoRubricas">
+    <div class="modal-card" style="max-width: 920px; max-height: 92vh; padding: 20px 24px;">
+      <div class="modal-header" style="padding-bottom: 12px; margin-bottom: 12px; border-bottom: 2px solid #cbd5e1; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div>
+          <h3 style="font-size: 1.15rem; font-weight: 800; margin: 0; color: #0f172a; display: flex; align-items: center; gap: 10px;">
+            <span>📖 Catálogo Completo de Rúbricas</span>
+            <span id="badgeTotalCatalogo" style="background: #dbeafe; color: #1e40af; font-size: 0.78rem; font-weight: 800; padding: 2px 9px; border-radius: 6px; border: 1px solid #bfdbfe;">0 rúbricas</span>
+          </h3>
+          <p style="font-size: 0.82rem; color: #64748b; margin: 3px 0 0 0;">Histórico y archivo completo de rúbricas realizadas en este curso.</p>
+        </div>
+        <button class="close-modal" onclick="app.cerrarModal('modalCatalogoRubricas')" style="font-size: 1.4rem; cursor: pointer; color: #64748b;" title="Cerrar catálogo">&times;</button>
+      </div>
+
+      <!-- Buscador y Filtros del Catálogo -->
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; justify-content: space-between;">
+        <div style="flex: 1; min-width: 220px; position: relative;">
+          <input type="text" id="searchCatalogoRubricasInput" class="input-custom" placeholder="🔍 Buscar rúbrica por título o criterio..." style="width: 100%; padding: 7px 12px; font-size: 0.86rem; border-radius: 6px; border: 1.5px solid #cbd5e1;" oninput="app.filtrarCatalogoRubricas()" />
+        </div>
+        <div style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
+          <span style="font-size: 0.8rem; font-weight: 700; color: #475569; margin-right: 2px;">Filtrar:</span>
+          <button class="btn btn-sm btn-primary filter-btn-cat active" data-type="todos" onclick="app.setFiltroTipoCatalogo('todos', this)" style="padding: 4px 10px; font-size: 0.78rem; font-weight: 700;">Todas</button>
+          <button class="btn btn-sm btn-secondary filter-btn-cat" data-type="actividad" onclick="app.setFiltroTipoCatalogo('actividad', this)" style="padding: 4px 10px; font-size: 0.78rem; font-weight: 700;">📝 Actividades</button>
+          <button class="btn btn-sm btn-secondary filter-btn-cat" data-type="examen" onclick="app.setFiltroTipoCatalogo('examen', this)" style="padding: 4px 10px; font-size: 0.78rem; font-weight: 700;">💯 Exámenes</button>
+          <button class="btn btn-sm btn-secondary filter-btn-cat" data-type="trabajos" onclick="app.setFiltroTipoCatalogo('trabajos', this)" style="padding: 4px 10px; font-size: 0.78rem; font-weight: 700;">📊 Trabajos</button>
+        </div>
+      </div>
+
+      <!-- Lista del catálogo -->
+      <div class="modal-body" style="overflow-y: auto; max-height: 55vh; padding-right: 4px; display: flex; flex-direction: column; gap: 10px;" id="contenedorListaCatalogoRubricas">
+      </div>
+
+      <div class="modal-footer" style="padding-top: 14px; margin-top: 12px; border-top: 1px solid #cbd5e1; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <span style="font-size: 0.82rem; color: #64748b; font-weight: 600;" id="infoResultadosCatalogo">Mostrando 0 rúbricas</span>
+        <button class="btn btn-secondary" onclick="app.cerrarModal('modalCatalogoRubricas')" style="font-weight: 700;">Cerrar Catálogo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: DIARIO DE CLASE -->
+  <div class="modal-overlay" id="modalDiarioClase">
+    <div class="modal-card" style="max-width: 960px; max-height: 92vh; padding: 20px 24px;">
+      <div class="modal-header" style="padding-bottom: 12px; margin-bottom: 12px; border-bottom: 2px solid #cbd5e1; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div>
+          <h3 style="font-size: 1.15rem; font-weight: 800; margin: 0; color: #0f172a; display: flex; align-items: center; gap: 10px;">
+            <span>📖 Diario de Clase</span>
+            <span id="badgeTotalDiario" style="background: #d1fae5; color: #065f46; font-size: 0.78rem; font-weight: 800; padding: 2px 9px; border-radius: 6px; border: 1px solid #a7f3d0;">0 eventos</span>
+          </h3>
+          <p style="font-size: 0.82rem; color: #64748b; margin: 3px 0 0 0;">Histórico de eventos del curso. Edita la fecha y descripción de cada evento o asígnala directamente a las actividades con la misma fecha.</p>
+        </div>
+        <button class="close-modal" onclick="app.cerrarModal('modalDiarioClase')" style="font-size: 1.4rem; cursor: pointer; color: #64748b;" title="Cerrar diario">&times;</button>
+      </div>
+
+      <!-- Barra de herramientas del Diario -->
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap;">
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+          <button class="btn btn-primary btn-sm" onclick="app.agregarNuevoEventoDiario()" style="font-weight: 800; background: #2563eb; padding: 7px 16px;">
+            ➕ Añadir Nuevo Evento
+          </button>
+          <button class="btn btn-secondary btn-sm" onclick="app.importarFechasActividadesEnDiario(false)" style="font-weight: 700; padding: 7px 14px;" title="Importa automáticamente las fechas de las actividades que aún no estén en el diario">
+            ⚡ Autocargar Fechas de Actividades
+          </button>
+        </div>
+        <div style="font-size: 0.8rem; color: #64748b; font-weight: 600;">
+          💡 Histórico ordenado cronológicamente (desplazado al final)
+        </div>
+      </div>
+
+      <!-- Lista de eventos del Diario -->
+      <div class="modal-body" style="overflow-y: auto; max-height: 52vh; padding-right: 6px; display: flex; flex-direction: column; gap: 12px;" id="contenedorListaDiarioClase">
+      </div>
+
+      <div class="modal-footer" style="padding-top: 14px; margin-top: 12px; border-top: 1px solid #cbd5e1; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <span style="font-size: 0.82rem; color: #64748b; font-weight: 600;" id="infoDiarioFooter"></span>
+        <button class="btn btn-secondary" onclick="app.cerrarModal('modalDiarioClase')" style="font-weight: 700;">Cerrar Diario</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CREACIÓN MANUAL DE RÚBRICA -->
+  <div class="modal-overlay" id="modalCrearRubricaManual">
+    <div class="modal-card" style="max-width: 900px; max-height: 90vh;">
+      <div class="modal-header">
+        <h3>➕ Crear Nueva Rúbrica Manualmente</h3>
+        <button class="close-modal" onclick="app.cerrarModal('modalCrearRubricaManual')">&times;</button>
+      </div>
+      <div class="modal-body" style="overflow-y: auto;">
+        <div style="display: flex; gap: 12px; margin-bottom: 14px; flex-wrap: wrap;">
+          <div style="flex: 1; min-width: 250px;">
+            <label><strong>Título de la rúbrica:</strong></label>
+            <input type="text" id="manualRubricaTitulo" class="form-control" placeholder="Ej. Trabajo de Investigación Literatura" />
+          </div>
+          <select id="manualRubricaTipo" style="display: none;" onchange="app.actualizarFormularioCrearManual(this.value)">
+            <option value="actividades">Actividades</option>
+            <option value="examen">Examen</option>
+            <option value="trabajos">Trabajo</option>
+          </select>
+        </div>
+
+        <!-- Disponibilidad de la rúbrica -->
+        <div class="form-group" style="background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 10px 14px; margin-bottom: 14px;">
+          <label style="margin-bottom: 6px; display: block; font-size: 0.85rem; font-weight: 700; color: #1e293b;">
+            🌐 Disponibilidad de la rúbrica:
+          </label>
+          <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+            <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.86rem; cursor: pointer; font-weight: 500;">
+              <input type="radio" name="manualRubDisponibilidad" id="manualRubDispPrivada" value="privada" style="accent-color: #2563eb;" checked />
+              <span>🔒 Solo para este grupo</span>
+            </label>
+            <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.86rem; cursor: pointer; font-weight: 500;">
+              <input type="radio" name="manualRubDisponibilidad" id="manualRubDispCompartida" value="compartida" style="accent-color: #2563eb;" />
+              <span id="lblManualRubDispCompartida">🔗 Compartir con grupos vinculados</span>
+            </label>
+          </div>
+          <div style="font-size: 0.76rem; color: #64748b; margin-top: 4px;">
+            Al compartir, solo se compartirá la estructura de la rúbrica. Los alumnos, notas y evaluaciones son estrictamente privados e independientes en cada grupo.
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <strong style="font-size: 0.9rem;">Definición de ítems y criterios:</strong>
+          <div style="display: flex; gap: 6px;">
+            <button class="btn btn-sm" onclick="app.agregarOrtografiaEnCreacionManual()" style="background: #fdf2f8; color: #be185d; border: 1px solid #fbcfe8; font-weight: 700; padding: 3px 10px; border-radius: 6px; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 4px;" title="Añadir ítem de Ortografía">✍️ Evaluar Ortografía</button>
+            <button class="btn btn-secondary btn-sm" onclick="app.agregarFilaManualCreacion()">+ Añadir Ítem</button>
+          </div>
+        </div>
+
+        <div class="table-container" style="max-height: 350px;">
+          <table class="cuaderno-table">
+            <thead>
+              <tr style="background: #f1f5f9;">
+                <th style="width: 85px; text-align: center;">Nº Actividad</th>
+                <th>Descripción de la Actividad</th>
+                <th style="width: 140px;">Criterio</th>
+                <th id="thManualMaxScore" style="width: 120px; text-align: center;">Puntos Máx.</th>
+                <th style="width: 50px; text-align: center;">Acción</th>
+              </tr>
+            </thead>
+            <tbody id="manualRubricaTbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div id="manualFooterSumIndicator" style="font-size: 0.9rem; font-weight: 700;"></div>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-secondary" onclick="app.cerrarModal('modalCrearRubricaManual')">Cancelar</button>
+          <button class="btn btn-primary" onclick="app.guardarRubricaManual()">💾 Crear Rúbrica e Integrar en Fernanditio</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: PREVISUALIZAR PLANTILLA DE RÚBRICA COMPARTIDA -->
+  <div class="modal-overlay" id="modalPreviewTemplateRubrica">
+    <div class="modal-card" style="max-width: 820px; max-height: 90vh;">
+      <div class="modal-header" style="background: linear-gradient(135deg, #1e3a8a, #2563eb); color: #ffffff;">
+        <div>
+          <h3 id="previewTemplateHeaderTitulo" style="color: #ffffff; margin: 0; font-size: 1.15rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+            <span>👁️</span> Plantilla de Rúbrica Compartida
+          </h3>
+          <p id="previewTemplateSubhead" style="font-size: 0.78rem; color: #bfdbfe; margin-top: 3px; margin-bottom: 0;">
+            Estructura compartida • Las notas y alumnos se mantendrán aislados en tu grupo
+          </p>
+        </div>
+        <button class="close-modal" onclick="app.cerrarModal('modalPreviewTemplateRubrica')" style="color: #ffffff;">&times;</button>
+      </div>
+      <div class="modal-body" style="overflow-y: auto;" id="previewTemplateBodyContenido"></div>
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; border-top: 1px solid #cbd5e1; background: #f8fafc; padding: 12px 18px;">
+        <button class="btn btn-secondary" onclick="app.cerrarModal('modalPreviewTemplateRubrica')">Cerrar</button>
+        <button class="btn btn-primary" id="btnPreviewTemplateAplicar" style="font-weight: 800; padding: 7px 18px;">📥 Usar esta Rúbrica en mi Grupo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- VENTANA DEL ASISTENTE CHATBOT -->
+  <div id="chatbotVentana" class="chatbot-window" style="display: none;" aria-label="Asistente Virtual Fernanditio">
+    <div class="chatbot-header">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div class="chatbot-avatar">🤖</div>
+        <div>
+          <div style="font-weight: 800; font-size: 0.95rem; color: #ffffff; line-height: 1.2;">Asistente Fernanditio</div>
+          <div style="font-size: 0.72rem; color: #86efac; font-weight: 600; display: flex; align-items: center; gap: 4px;">
+            <span style="display: inline-block; width: 6px; height: 6px; background: #22c55e; border-radius: 50%;"></span>
+            Guía pedagógica y soporte LOMLOE
+          </div>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <button class="chatbot-tool-btn" onclick="app.reiniciarChatbot()" title="Reiniciar explicación inicial">🔄</button>
+        <button class="chatbot-tool-btn" onclick="app.cerrarChatbot()" title="Cerrar asistente">✕</button>
+      </div>
+    </div>
+
+    <div class="chatbot-messages" id="chatbotMessages">
+      <!-- Los mensajes se generan dinámicamente -->
+    </div>
+
+    <!-- Barra de preguntas sugeridas rápidas -->
+    <div class="chatbot-chips-bar" id="chatbotChipsBar">
+      <button class="chatbot-chip" onclick="app.enviarPreguntaPredefinida('¿Cómo creo un nuevo grupo?')">➕ Crear grupo</button>
+      <button class="chatbot-chip" onclick="app.enviarPreguntaPredefinida('¿Cómo introduzco los alumnos?')">👥 Meter alumnos</button>
+      <button class="chatbot-chip" onclick="app.enviarPreguntaPredefinida('¿Cómo introduzco y configuro los criterios?')">🎯 Configurar criterios</button>
+      <button class="chatbot-chip" onclick="app.enviarPreguntaPredefinida('¿Cómo creo una rúbrica de examen sobre 10?')">💯 Rúbrica examen</button>
+      <button class="chatbot-chip" onclick="app.enviarPreguntaPredefinida('¿Cómo se calculan las notas por criterios?')">📊 Cálculo de notas</button>
+    </div>
+
+    <div class="chatbot-footer">
+      <form id="formChatbot" onsubmit="event.preventDefault(); app.enviarMensajeChatbotInput();" style="display: flex; gap: 8px; width: 100%; margin: 0;">
+        <input type="text" id="inputChatbotMensaje" class="chatbot-input" placeholder="Pregunta sobre grupos, alumnos, criterios, rúbricas..." autocomplete="off" />
+        <button type="submit" id="btnEnviarChatbot" class="chatbot-send-btn" title="Enviar mensaje">
+          ➤
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div class="toast-msg" id="toastNotif"></div>
+
+  <!-- DROPDOWN GEAR MENU -->
+  <div class="gear-menu" id="gearDropdownMenu">
+    <button class="gear-item" id="gearEditAct">✏️ Editar actividad</button>
+    <button class="gear-item" id="gearChangeMode">🔄 Cambiar modo de calificación</button>
+    <button class="gear-item" id="gearHideAct">👁️ Ocultar / Mostrar actividad</button>
+    <button class="gear-item" id="gearColorSec">🎨 Cambiar color sección</button>
+    <button class="gear-item danger" id="gearDeleteAct">🗑️ Eliminar actividad</button>
+  </div>
+
+  <!-- NAVEGACIÓN INFERIOR MÓVIL (BOTTOM NAV BAR) -->
+  <nav class="mobile-bottom-nav" id="mobileBottomNav" aria-label="Navegación principal móvil">
+    <button class="mobile-nav-btn active" id="btnMobileCuaderno" onclick="app.cambiarVista('cuaderno')" title="Ver actividades del cuaderno">
+      <span class="mobile-nav-icon">📝</span>
+      <span class="mobile-nav-label">Actividades</span>
+    </button>
+    <button class="mobile-nav-btn" id="btnMobileFiltro" onclick="app.abrirModalDiarioFiltros()" title="Filtrar actividades en orden cronológico">
+      <span class="mobile-nav-icon">🔍</span>
+      <span class="mobile-nav-label">Filtro</span>
+    </button>
+    <button class="mobile-nav-btn" id="btnMobileRubricas" onclick="app.cambiarVista('rubricas')" title="Sistema de rúbricas">
+      <span class="mobile-nav-icon">📋</span>
+      <span class="mobile-nav-label">Rúbricas</span>
+    </button>
+    <button class="mobile-nav-btn" id="btnMobileConfig" onclick="app.cambiarVista('configuracion')" title="Ajustes de grupos y configuración">
+      <span class="mobile-nav-icon">⚙️</span>
+      <span class="mobile-nav-label">Ajustes</span>
+    </button>
+    <button class="mobile-nav-btn" id="btnMobileMas" onclick="app.toggleMobileMasMenu(event)" title="Más opciones y herramientas">
+      <span class="mobile-nav-icon" style="letter-spacing: -1px; font-weight: 900;">⋮</span>
+      <span class="mobile-nav-label">Más</span>
+    </button>
+  </nav>
+
+  <!-- MENÚ EMERGENTE "MÁS OPCIONES" MÓVIL (BOTÓN 3 PUNTITOS) -->
+  <div class="mobile-more-backdrop" id="mobileMoreBackdrop" onclick="app.cerrarMobileMasMenu()"></div>
+  <div class="mobile-more-menu" id="mobileMoreMenu" aria-label="Menú de más opciones">
+    <div class="mobile-more-header">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 1.05rem;">⚡</span>
+        <span>Herramientas y Vistas</span>
+      </div>
+      <button type="button" class="mobile-more-close" onclick="app.cerrarMobileMasMenu()" aria-label="Cerrar menú">✕</button>
+    </div>
+    <div class="mobile-more-list">
+      <button type="button" class="mobile-more-item" id="btnMoreResultados" onclick="app.seleccionarMasOpcion('resultados')">
+        <span class="mobile-more-icon" style="color: #2563eb; background: #eff6ff; border-color: #bfdbfe;">📊</span>
+        <div class="mobile-more-text">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <strong>Resultados y Medias</strong>
+            <span class="mobile-more-tag" id="tagMoreResultadosActive" style="display: none;">Activo</span>
+          </div>
+          <small>Medias por criterios LOMLOE, ponderaciones y notas finales</small>
+        </div>
+        <span class="mobile-more-arrow">›</span>
+      </button>
+
+      <button type="button" class="mobile-more-item" id="btnMoreDiario" onclick="app.seleccionarMasOpcion('diario')">
+        <span class="mobile-more-icon" style="color: #059669; background: #ecfdf5; border-color: #a7f3d0;">📖</span>
+        <div class="mobile-more-text">
+          <strong>Diario de Clase</strong>
+          <small>Anotaciones de clase, incidencias de aula y observaciones</small>
+        </div>
+        <span class="mobile-more-arrow">›</span>
+      </button>
+
+      <button type="button" class="mobile-more-item" id="btnMoreExportar" onclick="app.seleccionarMasOpcion('exportar')">
+        <span class="mobile-more-icon" style="color: #0284c7; background: #f0f9ff; border-color: #bae6fd;">📥</span>
+        <div class="mobile-more-text">
+          <strong>Exportar Calificaciones</strong>
+          <small>Descargar notas e informe oficial en formato Excel (.xlsx)</small>
+        </div>
+        <span class="mobile-more-arrow">›</span>
+      </button>
+
+      <button type="button" class="mobile-more-item" id="btnMoreGuardar" onclick="app.seleccionarMasOpcion('guardar')">
+        <span class="mobile-more-icon" style="color: #d97706; background: #fffbeb; border-color: #fde68a;">💾</span>
+        <div class="mobile-more-text">
+          <strong>Guardar Cambios</strong>
+          <small>Guardar copia local inmediata y sincronizar en la nube</small>
+        </div>
+        <span class="mobile-more-arrow">›</span>
+      </button>
+
+      <button type="button" class="mobile-more-item" id="btnMoreAsistente" onclick="app.seleccionarMasOpcion('asistente')">
+        <span class="mobile-more-icon" style="color: #7c3aed; background: #f5f3ff; border-color: #ddd6fe;">🤖</span>
+        <div class="mobile-more-text">
+          <strong>Asistente Fernanditio</strong>
+          <small>Tutor pedagógico con inteligencia artificial y ayuda</small>
+        </div>
+        <span class="mobile-more-arrow">›</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT INTEGRADO Y SERVICIOS -->
+  <script type="module" src="/src/app.js"></script>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+</html>

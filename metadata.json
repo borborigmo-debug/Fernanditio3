@@ -1,0 +1,8 @@
+{
+  "name": "1 Remix FernanDiTio",
+  "description": "Cuaderno de evaluación docente por criterios y cálculo ponderado para Lengua Castellana y Literatura ESO.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

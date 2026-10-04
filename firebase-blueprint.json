@@ -1,0 +1,34 @@
+{
+  "entities": {
+    "TeacherNotebook": {
+      "title": "Teacher Notebook",
+      "description": "Cuaderno docente de evaluación con grupos, alumnos, criterios, secciones y calificaciones.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Identificador del docente autenticado."
+        },
+        "userEmail": {
+          "type": "string",
+          "description": "Correo electrónico del docente."
+        },
+        "data": {
+          "type": "string",
+          "description": "Estado serializado en JSON con grupos, secciones, criterios y notas."
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Fecha y hora ISO de la última sincronización."
+        }
+      },
+      "required": ["userId", "data", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/teachers/{userId}/notebook/current": {
+      "schema": "TeacherNotebook",
+      "description": "Documento con el cuaderno actual sincronizado del docente."
+    }
+  }
+}

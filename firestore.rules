@@ -1,0 +1,41 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Permite verificar la conexión inicial a Firestore
+    match /test/connection {
+      allow read: if true;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidTeacherNotebook(data, userId) {
+      return data.userId == request.auth.uid &&
+             data.userId == userId &&
+             data.userId is string && data.userId.size() <= 128 &&
+             data.data is string && data.data.size() <= 1048576 &&
+             data.updatedAt is string && data.updatedAt.size() <= 64;
+    }
+
+    // Aislamiento estricto de cuaderno docente por UID de Firebase Auth con validación de esquema y límites volumétricos
+    match /teachers/{userId} {
+      allow get, list: if isSignedIn() && request.auth.uid == userId && isValidId(userId);
+
+      match /notebook/{docId} {
+        allow get: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidId(docId);
+        allow create, update: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidId(docId) && isValidTeacherNotebook(request.resource.data, userId);
+        allow delete: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidId(docId);
+      }
+    }
+  }
+}
