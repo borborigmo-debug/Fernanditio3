@@ -39,8 +39,8 @@ export const getSupabaseClient = () => {
     try {
       supabaseClientInstance = createClient(SUPABASE_URL, key, {
         auth: {
-          persistSession: true,
-          autoRefreshToken: true,
+          persistSession: false,
+          autoRefreshToken: false,
         }
       });
     } catch (err) {

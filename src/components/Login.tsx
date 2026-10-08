@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { firebaseSync } from '../firebaseSync';
 import { getSupabaseKey, setSupabaseKey, SUPABASE_URL } from '../supabase';
 import { supabaseSync } from '../supabaseSync';
-import userDataset from '../userDataset.json';
 
 export const Login: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -25,19 +24,20 @@ export const Login: React.FC = () => {
     }
     setLoading(true);
     setError(null);
-    setSupabaseStatusMsg('Conectando y migrando datos del cuaderno a Supabase...');
+    setSupabaseStatusMsg('Verificando conexión con Supabase...');
     try {
       setSupabaseKey(supabaseKey.trim());
-      const notebookData = (window as any).app?.data || userDataset;
-      const seedResult = await supabaseSync.seedRelationalDataToSupabase('docente_borborigmo_gmail_com', notebookData);
-      setSupabaseStatusMsg(seedResult.message);
-      if (seedResult.success) {
+      const connected = await supabaseSync.checkStatus();
+      if (connected) {
+        setSupabaseStatusMsg('✅ Conexión con Supabase verificada con éxito.');
         setTimeout(() => {
           handleDirectLogin();
-        }, 1200);
+        }, 800);
+      } else {
+        setError('No se pudo establecer conexión con Supabase. Revisa la clave anon.');
       }
     } catch (e: any) {
-      setError(e?.message || 'Error al conectar/sincronizar con Supabase');
+      setError(e?.message || 'Error al conectar con Supabase');
     } finally {
       setLoading(false);
     }
@@ -49,7 +49,7 @@ export const Login: React.FC = () => {
     try {
       await firebaseSync.loginWithGoogle();
     } catch (err: any) {
-      console.error('[Google Auth Error]:', err?.message || String(err));
+      console.warn('[Google Auth Error]:', err?.message || String(err));
       const msg = err?.message || 'Error al conectar con Google Authentication.';
       setError(msg);
     } finally {
@@ -63,7 +63,7 @@ export const Login: React.FC = () => {
     try {
       await firebaseSync.loginWithDirectAccess('borborigmo@gmail.com', 'Profesor Fernanditio');
     } catch (err: any) {
-      console.error('[Direct Access Error]:', err?.message || String(err));
+      console.warn('[Direct Access Error]:', err?.message || String(err));
       setError('Error al acceder en modo directo.');
     } finally {
       setLoading(false);

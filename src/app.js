@@ -1,4 +1,8 @@
-import USER_DATASET from './userDataset.json';
+import { supabaseSync } from './supabaseSync';
+
+if (typeof window !== 'undefined') {
+  window.supabaseSync = supabaseSync;
+}
 
     /**
      * Cuaderno de Evaluación por Criterios - ESO Lengua Castellana y Literatura
@@ -555,41 +559,43 @@ import USER_DATASET from './userDataset.json';
         try {
           this.actualizarUI();
         } catch (err) {
-          console.error("❌ Error en la inicialización de la interfaz:", err);
+          console.warn("❌ Error en la inicialización de la interfaz:", err);
         } finally {
           this.ocultarSplashScreen();
         }
+      }
+
+      getProfesorId() {
+        if (window.firebaseSync && window.firebaseSync.status && window.firebaseSync.status.user) {
+          const u = window.firebaseSync.status.user;
+          if (u.email) return `docente_${u.email.replace(/[^a-zA-Z0-9]/g, '_')}`;
+          if (u.uid) return u.uid;
+        }
+        if (window.supabaseSync && window.supabaseSync.status && window.supabaseSync.status.activeTeacherId) {
+          return window.supabaseSync.status.activeTeacherId;
+        }
+        if (window.firebaseAuthCurrentUserUid) {
+          return window.firebaseAuthCurrentUserUid;
+        }
+        return '';
       }
 
       init() {
         this.configurarEventosGlobales();
         this.initNavegacionHistoria();
 
-        window.addEventListener("beforeunload", () => {
-          this.guardarDatos(true);
-        });
-
-        window.addEventListener("online", () => {
-          if (this.data && this.data.hasPendingSync && window.firebaseSync) {
-            window.firebaseSync.saveData(this.data, true);
-          }
-        });
-
         this.conectarFirebaseSync();
-        this.conectarSupabaseSync();
 
-        // Fallback defensivo: Si tras 1.5 segundos no se ha resuelto el estado de inicialización,
-        // consolidar el arranque con el usuario disponible o el modo temporal.
+        // Garantizar que la interfaz se inicialice de forma robusta tras el splash screen
         setTimeout(() => {
           if (!this._initializationCompleted) {
             const fallbackUid = (window.firebaseSync && window.firebaseSync.status && window.firebaseSync.status.user)
               ? window.firebaseSync.status.user.uid
-              : window.firebaseAuthCurrentUserUid;
-            if (fallbackUid) {
-              this.consolidarInicializacion(fallbackUid);
-            }
+              : (window.firebaseAuthCurrentUserUid || this.getProfesorId());
+            this.consolidarInicializacion(fallbackUid);
           }
-        }, 1500);
+          this.ocultarSplashScreen();
+        }, 600);
       }
 
       ordenarCriterios(criterios) {
@@ -602,31 +608,16 @@ import USER_DATASET from './userDataset.json';
       }
 
       getStorageKey() {
-        const syncUser = (window.firebaseSync && window.firebaseSync.status) ? window.firebaseSync.status.user : null;
-        const uid = syncUser && syncUser.uid ? syncUser.uid : (window.firebaseAuthCurrentUserUid || null);
-        return uid ? `fernanditio_cuaderno_${uid}` : null;
+        return null;
       }
 
       cargarDatos() {
-        const storageKey = this.getStorageKey();
-        let raw = storageKey ? localStorage.getItem(storageKey) : null;
-
-        if (raw) {
-          try {
-            const parsed = JSON.parse(raw);
-            if (parsed && Array.isArray(parsed.grupos)) {
-              this.data = parsed;
-            } else {
-              this.crearEstructuraBase();
-            }
-          } catch (e) {
-            console.error("Error al leer datos locales, inicializando por defecto", e);
-            this.crearEstructuraBase();
-          }
+        // Supabase es la ÚNICA fuente de verdad canónica. Los datos residen exclusivamente en memoria durante la sesión.
+        if (!this.data || typeof this.data !== "object") {
+          this.data = { grupos: [], premios: [], plantillasRubricas: [], version: 1, updatedAt: new Date().toISOString() };
         }
-
-        if (!raw) {
-          this.crearEstructuraBase();
+        if (!Array.isArray(this.data.grupos)) {
+          this.data.grupos = [];
         }
 
         if (!this.data.premios || !Array.isArray(this.data.premios) || this.data.premios.length === 0) {
@@ -740,13 +731,11 @@ import USER_DATASET from './userDataset.json';
         // Recalcular pesos de secciones según suma de sus criterios automáticamente
         this.recalcularPonderacionesSecciones();
 
-        // Por defecto, las columnas de secciones sin evaluar aparecen plegadas; las que ya se hayan evaluado se despliegan
+        // Por defecto, todas las secciones aparecen plegadas
         if (this.grupoActivo && this.grupoActivo.secciones) {
           this.seccionesPlegadas = new Set();
           this.grupoActivo.secciones.forEach(sec => {
-            if (!this.seccionTieneEvaluaciones(sec.id)) {
-              this.seccionesPlegadas.add(sec.id);
-            }
+            this.seccionesPlegadas.add(sec.id);
           });
         }
 
@@ -773,6 +762,8 @@ import USER_DATASET from './userDataset.json';
           if (!grupo.alumnos || !Array.isArray(grupo.alumnos)) {
             grupo.alumnos = [];
           } else {
+            // Filtrar elementos nulos o sin nombre válido
+            grupo.alumnos = grupo.alumnos.filter(a => a && a.nombre && String(a.nombre).trim() !== "");
             const setAluIds = new Set();
             grupo.alumnos.forEach((alu, index) => {
               const idValido = alu && alu.id && typeof alu.id === "string" && alu.id.trim() !== "";
@@ -781,12 +772,7 @@ import USER_DATASET from './userDataset.json';
                 const uuid = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + "-a-" + index + "-" + Math.random().toString(36).substring(2, 9));
                 const newId = "alu-" + uuid;
 
-                if (alu) {
-                  alu.id = newId;
-                } else {
-                  alu = { id: newId, nombre: `Alumno ${index + 1}`, orden: index + 1 };
-                  grupo.alumnos[index] = alu;
-                }
+                alu.id = newId;
                 huboCambios = true;
 
                 if (oldId && grupo.evaluaciones) {
@@ -825,6 +811,73 @@ import USER_DATASET from './userDataset.json';
                 huboCambios = true;
               }
             });
+
+            // Deduplicación automática por nombre normalizado (previene duplicados con distintas comas, tildes o Mayúsculas)
+            if (grupo.alumnos.length > 1) {
+              const seenNorm = new Map();
+              const alumnosUnicos = [];
+
+              grupo.alumnos.forEach((alu, index) => {
+                if (!alu || !alu.nombre) return;
+                const nKey = alu.nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+                if (!nKey) {
+                  alumnosUnicos.push(alu);
+                  return;
+                }
+
+                if (seenNorm.has(nKey)) {
+                  const primaryAlu = seenNorm.get(nKey);
+                  const duplicateId = alu.id;
+                  const primaryId = primaryAlu.id;
+
+                  if (duplicateId && primaryId && duplicateId !== primaryId && grupo.evaluaciones) {
+                    ["eval1", "eval2", "eval3", "final"].forEach(evKey => {
+                      const ev = grupo.evaluaciones[evKey];
+                      if (ev && ev.calificaciones) {
+                        for (const actId in ev.calificaciones) {
+                          const califs = ev.calificaciones[actId];
+                          if (califs && califs[duplicateId] !== undefined) {
+                            if (califs[primaryId] === undefined) {
+                              califs[primaryId] = califs[duplicateId];
+                            }
+                            delete califs[duplicateId];
+                          }
+                        }
+                      }
+                      if (ev && ev.calificacionesRubricas) {
+                        for (const rubId in ev.calificacionesRubricas) {
+                          const califsRub = ev.calificacionesRubricas[rubId];
+                          if (califsRub && califsRub[duplicateId] !== undefined) {
+                            if (califsRub[primaryId] === undefined) {
+                              califsRub[primaryId] = califsRub[duplicateId];
+                            }
+                            delete califsRub[duplicateId];
+                          }
+                        }
+                      }
+                    });
+
+                    if (grupo.incidencias && Array.isArray(grupo.incidencias)) {
+                      grupo.incidencias.forEach(inc => {
+                        if (inc.alumnoId === duplicateId) inc.alumnoId = primaryId;
+                      });
+                    }
+                  }
+                  huboCambios = true;
+                } else {
+                  seenNorm.set(nKey, alu);
+                  alumnosUnicos.push(alu);
+                }
+              });
+
+              if (alumnosUnicos.length !== grupo.alumnos.length) {
+                alumnosUnicos.forEach((alu, idx) => {
+                  alu.orden = idx + 1;
+                });
+                grupo.alumnos = alumnosUnicos;
+                huboCambios = true;
+              }
+            }
           }
 
           // 3. Secciones IDs
@@ -884,8 +937,13 @@ import USER_DATASET from './userDataset.json';
       }
 
       crearEstructuraBase() {
-        this.data = JSON.parse(JSON.stringify(USER_DATASET));
-        this.guardarDatos();
+        this.data = {
+          grupos: [],
+          premios: [],
+          plantillasRubricas: [],
+          version: 1,
+          updatedAt: new Date().toISOString()
+        };
       }
 
       guardarDatos(immediate = false) {
@@ -894,39 +952,9 @@ import USER_DATASET from './userDataset.json';
           this.data.lastModified = now;
           this.data.updatedAt = now;
           this.data.version = (this.data.version || 0) + 1;
-          this.data.hasPendingSync = true;
         }
-        const storageKey = this.getStorageKey();
-        if (storageKey) {
-          localStorage.setItem(storageKey, JSON.stringify(this.data));
-          if (this.grupoActivo && this.grupoActivo.id) {
-            const syncUser = (window.firebaseSync && window.firebaseSync.status) ? window.firebaseSync.status.user : null;
-            const uid = syncUser && syncUser.uid ? syncUser.uid : (window.firebaseAuthCurrentUserUid || null);
-            if (uid) {
-              try {
-                localStorage.setItem(`fernanditio_${uid}_group_${this.grupoActivo.id}`, JSON.stringify(this.grupoActivo));
-              } catch (e) {}
-            }
-          }
-        }
-        if (window.supabaseSync) {
-          if (this._supabaseSyncDebounceTimer) {
-            clearTimeout(this._supabaseSyncDebounceTimer);
-            this._supabaseSyncDebounceTimer = null;
-          }
-
-          if (immediate) {
-            window.supabaseSync.syncNotebookToSupabase('docente_borborigmo_gmail_com', this.data).catch((e) => {
-              console.warn('[Supabase Sync Warning]:', e);
-            });
-          } else {
-            this._supabaseSyncDebounceTimer = setTimeout(() => {
-              window.supabaseSync.syncNotebookToSupabase('docente_borborigmo_gmail_com', this.data).catch((e) => {
-                console.warn('[Supabase Debounced Sync Warning]:', e);
-              });
-            }, 600);
-          }
-        }
+        // guardarDatos opera exclusivamente como coordinador de estado en memoria local.
+        // NO realiza ninguna sincronización completa ni envía snapshots a Supabase.
       }
 
       guardarCambiosManual() {
@@ -1314,32 +1342,106 @@ import USER_DATASET from './userDataset.json';
       }
 
       // --- SISTEMA DE RÚBRICAS INTEGRADO ---
+      obtenerTimestampRubrica(rub) {
+        if (!rub) return 0;
+        // 1. Si fStr tiene fecha y hora completa ISO (contiene 'T' o ':'), parsearla
+        const fStr = rub.createdAt || rub.fechaCreacion || rub.fecha;
+        if (fStr && (fStr.includes("T") || fStr.includes(":"))) {
+          const parsed = Date.parse(fStr);
+          if (!isNaN(parsed) && parsed > 0) return parsed;
+        }
+        // 2. Si rub.id contiene un timestamp en ms de creación (ej: "rub-1728222324567"), extrae fecha y hora exactas
+        if (rub.id) {
+          const match = String(rub.id).match(/\d{10,}/);
+          if (match) {
+            const ts = parseInt(match[0], 10);
+            if (!isNaN(ts) && ts > 1000000000000) return ts;
+          }
+        }
+        // 3. Fallback: fecha YYYY-MM-DD
+        if (fStr) {
+          const parsed = Date.parse(fStr);
+          if (!isNaN(parsed) && parsed > 0) return parsed;
+        }
+        return 0;
+      }
+
+      obtenerRubricasConVinculadas() {
+        if (!this.grupoActivo) return [];
+
+        const localRubricas = (this.grupoActivo.rubricas || []).map(r => ({
+          ...r,
+          grupoOrigenNombre: this.grupoActivo.nombre,
+          esPropia: true
+        }));
+
+        const linkedIds = this.grupoActivo.linkedGroupIds || [];
+        const linkedRubricas = [];
+        const seenIds = new Set(localRubricas.map(r => r.id));
+
+        if (Array.isArray(linkedIds) && linkedIds.length > 0 && Array.isArray(this.data.grupos)) {
+          this.data.grupos.forEach(g => {
+            if (linkedIds.includes(g.id) && g.id !== this.grupoActivo.id && Array.isArray(g.rubricas)) {
+              g.rubricas.forEach(lr => {
+                if (!seenIds.has(lr.id)) {
+                  seenIds.add(lr.id);
+                  linkedRubricas.push({
+                    ...lr,
+                    grupoOrigenNombre: g.nombre,
+                    esPropia: false,
+                    esVinculada: true
+                  });
+                }
+              });
+            }
+          });
+        }
+
+        const todas = [...localRubricas, ...linkedRubricas];
+
+        // Ordenar estrictamente por fecha y hora de creación descendente (la más reciente arriba de todo)
+        todas.sort((a, b) => {
+          const ta = this.obtenerTimestampRubrica(a);
+          const tb = this.obtenerTimestampRubrica(b);
+          return tb - ta;
+        });
+
+        return todas;
+      }
+
+      buscarRubricaPorId(rubId) {
+        if (!rubId) return null;
+        const todas = this.obtenerRubricasConVinculadas();
+        return todas.find(r => r.id === rubId) || null;
+      }
+
       renderizarRubricasView() {
         if (!this.grupoActivo) return;
-        const rubricas = this.grupoActivo.rubricas || [];
+
+        const todasRubricas = this.obtenerRubricasConVinculadas();
+
         const countSpan = document.getElementById("countRubricasGrupo");
-        if (countSpan) countSpan.textContent = rubricas.length;
+        if (countSpan) countSpan.textContent = todasRubricas.length;
 
         const countHeader = document.getElementById("countCatalogoBtnHeader");
-        if (countHeader) countHeader.textContent = rubricas.length;
+        if (countHeader) countHeader.textContent = todasRubricas.length;
 
         const container = document.getElementById("listaRubricasSeccionPrincipal");
         if (!container) return;
         container.innerHTML = "";
 
-        if (rubricas.length === 0) {
+        if (todasRubricas.length === 0) {
           container.innerHTML = `
             <div style="background: #ffffff; border: 1px dashed #cbd5e1; border-radius: 10px; padding: 24px; text-align: center; color: var(--text-muted);">
-              <p style="font-size: 0.95rem; font-weight: 600; margin-bottom: 6px;">No hay ninguna rúbrica guardada en este curso.</p>
+              <p style="font-size: 0.95rem; font-weight: 600; margin-bottom: 6px;">No hay ninguna rúbrica guardada en este curso ni en sus grupos vinculados.</p>
               <p style="font-size: 0.8rem;">Utiliza alguno de los 4 botones inferiores para gestionar o crear una rúbrica de Actividades, Examen o Trabajo.</p>
             </div>
           `;
           return;
         }
 
-        // Mostrar únicamente las 3 más recientes en el panel principal
-        const rubricasOrdenadas = [...rubricas].reverse();
-        const ultimas3 = rubricasOrdenadas.slice(0, 3);
+        // Mostrar exactamente las últimas 3 rúbricas creadas (ordenadas por fecha descendente: la más reciente arriba)
+        const ultimas3 = todasRubricas.slice(0, 3);
 
         ultimas3.forEach(rub => {
           const card = document.createElement("div");
@@ -1368,18 +1470,24 @@ import USER_DATASET from './userDataset.json';
           const fechaStr = rub.fechaCreacion || rub.fecha || "";
           const fechaFmt = fechaStr ? this.formatearFecha(fechaStr.split("T")[0]) : "";
 
+          const tooltipParts = [];
+          if (normType) tooltipParts.push(`Tipo: ${normType}`);
+          if (rub.esVinculada && rub.grupoOrigenNombre) tooltipParts.push(`Grupo: ${rub.grupoOrigenNombre}`);
+          if (rub.esCompartida) tooltipParts.push(`Compartida`);
+          if (fechaFmt) tooltipParts.push(`Fecha de creación: ${fechaFmt}`);
+          tooltipParts.push(`${itemsCount} ítems/preguntas de evaluación`);
+          if (distinctCrit) tooltipParts.push(`Criterios: [${distinctCrit}]`);
+          if (rub.descripcion) tooltipParts.push(`Descripción: ${rub.descripcion}`);
+
+          const tooltipText = tooltipParts.join("\n• ");
+
           card.innerHTML = `
             <div style="display: flex; align-items: center; gap: 12px; flex: 1; min-width: 240px;">
               <input type="checkbox" class="chk-rubrica" value="${rub.id}" onchange="app.actualizarContadorRubricasSeleccionadas()" style="width: 18px; height: 18px; cursor: pointer; accent-color: #ef4444;" />
               <div>
-                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap;">
-                  <strong style="font-size: 1rem; color: var(--text);">${this.escapeHtml(rub.titulo)}</strong>
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                  <strong style="font-size: 1rem; color: var(--text); cursor: help; text-decoration: underline dotted #94a3b8;" title="${this.escapeHtml("Rúbrica: " + rub.titulo + "\n• " + tooltipText)}">${this.escapeHtml(rub.titulo)}</strong>
                   ${tipoBadge}
-                  ${rub.esCompartida ? `<span style="background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; padding: 2px 7px; border-radius: 4px; font-size: 0.73rem; font-weight: 700;">🔗 Compartida (v${rub.templateVersion || 1})</span>` : ''}
-                  ${fechaFmt ? `<span style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">📅 Creada: ${fechaFmt}</span>` : ''}
-                </div>
-                <div style="font-size: 0.8rem; color: var(--text-muted);">
-                  ${itemsCount} ítems/preguntas ${distinctCrit ? `• Criterios: [${distinctCrit}]` : ""}
                 </div>
               </div>
             </div>
@@ -1397,120 +1505,6 @@ import USER_DATASET from './userDataset.json';
           `;
           container.appendChild(card);
         });
-
-        // Si hay más de 3 rúbricas, mostrar banner directo al Catálogo
-        if (rubricas.length > 3) {
-          const catalogBanner = document.createElement("div");
-          catalogBanner.style.background = "linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)";
-          catalogBanner.style.border = "1.5px solid #93c5fd";
-          catalogBanner.style.borderRadius = "10px";
-          catalogBanner.style.padding = "16px";
-          catalogBanner.style.textAlign = "center";
-          catalogBanner.style.marginTop = "6px";
-          catalogBanner.style.boxShadow = "0 2px 8px rgba(37, 99, 235, 0.08)";
-          catalogBanner.innerHTML = `
-            <div style="font-size: 0.92rem; font-weight: 700; color: #1e40af; margin-bottom: 4px;">
-              📁 Mostrando las 3 rúbricas más recientes (${rubricas.length - 3} rúbricas anteriores ocultas)
-            </div>
-            <div style="font-size: 0.8rem; color: #3b82f6; margin-bottom: 12px;">
-              Las rúbricas realizadas anteriores se guardan en el catálogo para mantener el panel ágil.
-            </div>
-            <button class="btn btn-primary" onclick="app.abrirModalCatalogoRubricas()" style="font-weight: 800; background: linear-gradient(135deg, #1e40af, #2563eb); border: none; padding: 9px 22px; border-radius: 8px; font-size: 0.9rem; cursor: pointer; box-shadow: 0 4px 10px -2px rgba(30,64,175,0.3);">
-              📖 Abrir Catálogo Completo de Rúbricas (${rubricas.length})
-            </button>
-          `;
-          container.appendChild(catalogBanner);
-        } else {
-          const catalogBanner = document.createElement("div");
-          catalogBanner.style.textAlign = "center";
-          catalogBanner.style.marginTop = "8px";
-          catalogBanner.innerHTML = `
-            <button class="btn btn-secondary btn-sm" onclick="app.abrirModalCatalogoRubricas()" style="font-weight: 700; font-size: 0.82rem; padding: 6px 14px;">
-              📖 Consultar Catálogo Completo (${rubricas.length})
-            </button>
-          `;
-          container.appendChild(catalogBanner);
-        }
-
-        // Mostrar plantillas compartidas de grupos vinculados listas para usar
-        const linkedGroupIds = this.grupoActivo.linkedGroupIds || [];
-        const plantillasDisponibles = (this.data.plantillasRubricas || []).filter(tmpl => {
-          if (!tmpl.compartida) return false;
-          if (!linkedGroupIds.includes(tmpl.sourceGroupId)) return false;
-          const alreadyApplied = (this.grupoActivo.rubricas || []).some(r => r.templateId === tmpl.id);
-          return !alreadyApplied;
-        });
-
-        if (plantillasDisponibles.length > 0) {
-          const sharedSection = document.createElement("div");
-          sharedSection.style.marginTop = "20px";
-          sharedSection.style.background = "#f0fdf4";
-          sharedSection.style.border = "1.5px solid #86efac";
-          sharedSection.style.borderRadius = "12px";
-          sharedSection.style.padding = "16px 18px";
-          sharedSection.style.boxShadow = "0 2px 8px rgba(22, 163, 74, 0.08)";
-
-          let sharedHtml = `
-            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
-              <div>
-                <h4 style="margin: 0; font-size: 0.96rem; font-weight: 800; color: #15803d; display: flex; align-items: center; gap: 6px;">
-                  <span>📥</span> Rúbricas compartidas de grupos vinculados (${plantillasDisponibles.length})
-                </h4>
-                <div style="font-size: 0.78rem; color: #166534;">
-                  Plantillas disponibles para <strong>${this.grupoActivo.nombre}</strong>. Calificaciones, alumnos y notas 100% aislados.
-                </div>
-              </div>
-            </div>
-            <div style="display: flex; flex-direction: column; gap: 10px;">
-          `;
-
-          plantillasDisponibles.forEach(tmpl => {
-            const sourceGrp = (this.data.grupos || []).find(g => g.id === tmpl.sourceGroupId);
-            const sourceName = sourceGrp ? sourceGrp.nombre : "Grupo vinculado";
-            const itemsCount = tmpl.items ? tmpl.items.length : 0;
-            const normType = this.normalizarTipoActividad(tmpl.tipo);
-
-            let tBadge = "";
-            if (normType === "Examen") {
-              tBadge = `<span style="background: #fce7f3; color: #9d174d; border: 1px solid #fbcfe8; padding: 2px 6px; border-radius: 4px; font-size: 0.72rem; font-weight: 700;">💯 EXAMEN</span>`;
-            } else if (normType === "Trabajo") {
-              tBadge = `<span style="background: #ffedd5; color: #9a3412; border: 1px solid #fed7aa; padding: 2px 6px; border-radius: 4px; font-size: 0.72rem; font-weight: 700;">📊 TRABAJO</span>`;
-            } else {
-              tBadge = `<span style="background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; padding: 2px 6px; border-radius: 4px; font-size: 0.72rem; font-weight: 700;">📝 ACTIVIDAD</span>`;
-            }
-
-            sharedHtml += `
-              <div style="background: #ffffff; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-                <div>
-                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap;">
-                    <strong style="color: #0f172a; font-size: 0.95rem;">${tmpl.titulo}</strong>
-                    ${tBadge}
-                    <span style="font-size: 0.75rem; background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; padding: 2px 6px; border-radius: 4px; font-weight: 600;">📍 Origen: ${sourceName}</span>
-                    <span style="font-size: 0.75rem; background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 2px 6px; border-radius: 4px; font-weight: 600;">v${tmpl.version || 1}</span>
-                  </div>
-                  <div style="font-size: 0.78rem; color: #64748b;">
-                    ${itemsCount} ítems/preguntas definidas
-                  </div>
-                </div>
-                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                  <button class="btn btn-secondary btn-sm" onclick="app.previsualizarPlantillaCompartida('${tmpl.id}')" style="font-size: 0.8rem;">
-                    👁️ Previsualizar
-                  </button>
-                  <button class="btn btn-success btn-sm" onclick="app.instanciarRubricaCompartida('${tmpl.id}')" style="font-size: 0.8rem; background: #16a34a; border-color: #15803d; color: #ffffff; font-weight: 700;">
-                    📥 Usar en este grupo
-                  </button>
-                  <button class="btn btn-primary btn-sm" onclick="app.instanciarRubricaCompartida('${tmpl.id}', true)" style="font-size: 0.8rem; font-weight: 700;">
-                    📊 Evaluar
-                  </button>
-                </div>
-              </div>
-            `;
-          });
-
-          sharedHtml += `</div></div>`;
-          sharedSection.innerHTML = sharedHtml;
-          container.appendChild(sharedSection);
-        }
 
         this.actualizarContadorRubricasSeleccionadas();
       }
@@ -1557,7 +1551,7 @@ import USER_DATASET from './userDataset.json';
 
       renderizarCatalogoRubricas() {
         if (!this.grupoActivo) return;
-        const rubricas = this.grupoActivo.rubricas || [];
+        const rubricas = this.obtenerRubricasConVinculadas();
         const container = document.getElementById("contenedorListaCatalogoRubricas");
         if (!container) return;
 
@@ -1598,7 +1592,9 @@ import USER_DATASET from './userDataset.json';
           return;
         }
 
-        const filtradasOrdenadas = [...filtradas].reverse();
+        const filtradasOrdenadas = [...filtradas].sort((a, b) => {
+          return this.obtenerTimestampRubrica(b) - this.obtenerTimestampRubrica(a);
+        });
 
         filtradasOrdenadas.forEach(rub => {
           const card = document.createElement("div");
@@ -1930,6 +1926,9 @@ import USER_DATASET from './userDataset.json';
         };
 
         this.grupoActivo.diarioClase.push(nuevoEvt);
+        if (window.supabaseSync && this.grupoActivo) {
+          window.supabaseSync.saveDiaryEntry(this.grupoActivo.id, nuevoEvt).catch(e => console.warn(e));
+        }
         this.guardarDatos();
         this.renderizarDiarioClase();
 
@@ -1952,6 +1951,9 @@ import USER_DATASET from './userDataset.json';
         if (evt) {
           evt.fecha = nuevaFecha;
           this.grupoActivo.diarioClase.sort((a, b) => (a.fecha || "").localeCompare(b.fecha || ""));
+          if (window.supabaseSync && this.grupoActivo) {
+            window.supabaseSync.saveDiaryEntry(this.grupoActivo.id, evt).catch(e => console.warn(e));
+          }
           this.guardarDatos();
           this.renderizarDiarioClase();
         }
@@ -1962,6 +1964,9 @@ import USER_DATASET from './userDataset.json';
         const evt = this.grupoActivo.diarioClase.find(e => e.id === id);
         if (evt) {
           evt.descripcion = nuevaDesc;
+          if (window.supabaseSync && this.grupoActivo) {
+            window.supabaseSync.saveDiaryEntry(this.grupoActivo.id, evt).catch(e => console.warn(e));
+          }
           this.guardarDatos();
         }
       }
@@ -2013,6 +2018,9 @@ import USER_DATASET from './userDataset.json';
           "¿Estás seguro de que deseas eliminar este evento del diario de clase?",
           () => {
             this.grupoActivo.diarioClase = this.grupoActivo.diarioClase.filter(e => e.id !== id);
+            if (window.supabaseSync) {
+              window.supabaseSync.deleteDiaryEntry(id).catch(e => console.warn(e));
+            }
             this.guardarDatos();
             this.renderizarDiarioClase();
             this.actualizarUI();
@@ -3985,7 +3993,7 @@ import USER_DATASET from './userDataset.json';
         // Integrar criterios y secciones automáticamente en Fernanditio
         this.crearOActualizarSeccionesYColumnasParaRubrica(nuevaRub);
 
-        this.guardarDatos();
+        this.guardarDatos(true);
         this.cerrarModal("modalPreviewImportRubrica");
         this.renderizarRubricasView();
         if (this.vistaActiva === "cuaderno") {
@@ -4489,7 +4497,7 @@ import USER_DATASET from './userDataset.json';
         // Integrar criterios y secciones de forma totalmente aislada en el grupo actual
         this.crearOActualizarSeccionesYColumnasParaRubrica(nuevaInst);
 
-        this.guardarDatos();
+        this.guardarDatos(true);
         this.renderizarRubricasView();
         if (this.vistaActiva === "cuaderno") {
           this.renderizarCuaderno();
@@ -4806,7 +4814,12 @@ import USER_DATASET from './userDataset.json';
         }
 
         this.crearOActualizarSeccionesYColumnasParaRubrica(nuevaRub);
-        this.guardarDatos();
+        if (window.supabaseSync && this.grupoActivo) {
+          window.supabaseSync.saveRubric(this.grupoActivo.id, nuevaRub).catch((err) => {
+            console.warn('[Supabase saveRubric Notice]:', err);
+          });
+        }
+        this.guardarDatos(true);
         this.cerrarModal("modalCrearRubricaManual");
         this.renderizarRubricasView();
         if (this.vistaActiva === "cuaderno") {
@@ -4827,7 +4840,7 @@ import USER_DATASET from './userDataset.json';
 
       abrirEvaluarRubrica(rubricaId, alumnoId = null) {
         if (!this.grupoActivo) return;
-        const rub = (this.grupoActivo.rubricas || []).find(r => r.id === rubricaId);
+        const rub = this.buscarRubricaPorId(rubricaId);
         if (!rub) {
           alert("Rúbrica no encontrada.");
           return;
@@ -4868,25 +4881,8 @@ import USER_DATASET from './userDataset.json';
 
         const subHeader = document.getElementById("evalRubricaHeaderSub");
         if (subHeader) {
-          let tStr = "Actividades (0 / 5 / 10)";
-          let badgeBg = "#2563eb"; // blue
-          if (this.isTipoExamen(rub.tipo, rub.titulo)) {
-            tStr = "Examen (Nota numérica con Enter)";
-            badgeBg = "#7c3aed"; // violet
-          } else if (this.isTipoTrabajo(rub.tipo, rub.titulo)) {
-            tStr = "Trabajo (0 / 3 / 6 / 10)";
-            badgeBg = "#059669"; // emerald
-          }
-          subHeader.innerHTML = `
-            <div style="display: inline-flex; align-items: center; gap: 8px; margin-top: 4px; flex-wrap: wrap;">
-              <span style="background: ${badgeBg}; color: #ffffff; padding: 3px 10px; border-radius: 6px; font-weight: 800; font-size: 0.84rem; letter-spacing: 0.3px; box-shadow: 0 2px 4px rgba(0,0,0,0.18); display: inline-flex; align-items: center; gap: 5px; border: 1px solid rgba(255,255,255,0.25);">
-                🏷️ Tipo de Rúbrica: ${tStr}
-              </span>
-              <span style="font-weight: 700; color: #1e40af; font-size: 0.82rem; background: #dbeafe; padding: 3px 8px; border-radius: 5px; border: 1px solid #bfdbfe;">
-                • Evaluación: ${this.evaluacionActiva.toUpperCase()}
-              </span>
-            </div>
-          `;
+          subHeader.innerHTML = "";
+          subHeader.style.display = "none";
         }
 
         const helperBar = document.getElementById("evalRubricaExamenHelperBar");
@@ -4968,10 +4964,116 @@ import USER_DATASET from './userDataset.json';
         this.actualizarUISelectorAlumnosRubrica();
       }
 
+      obtenerConteoCalificacionesCriterioRubrica(rubrica, alumnoId) {
+        if (!this.grupoActivo || !rubrica) return 0;
+        const evalKey = this.evaluacionActiva;
+        const evalData = this.grupoActivo.evaluaciones ? this.grupoActivo.evaluaciones[evalKey] : null;
+        if (!evalData) return 0;
+
+        const items = rubrica.items || rubrica.aspectos || [];
+        const criteriosCodigos = Array.from(new Set(items.map(it => (it.criterio || "").trim()).filter(Boolean)));
+
+        let totalCalificaciones = 0;
+
+        // 1. Evaluar puntuaciones registradas directamente en esta rúbrica
+        const rubId = rubrica.id;
+        if (evalData.calificacionesRubricas && evalData.calificacionesRubricas[rubId] && evalData.calificacionesRubricas[rubId][alumnoId]) {
+          const scores = evalData.calificacionesRubricas[rubId][alumnoId];
+          if (scores && typeof scores === "object") {
+            Object.keys(scores).forEach(k => {
+              const v = scores[k];
+              if (v !== undefined && v !== null && v !== "") {
+                totalCalificaciones++;
+              }
+            });
+          }
+        }
+
+        // 2. Si la rúbrica evalúa criterios LOMLOE específicos, contar también todas las demás actividades del periodo que evalúan esos mismos criterios
+        if (criteriosCodigos.length > 0 && evalData.actividades && evalData.calificaciones) {
+          evalData.actividades.forEach(act => {
+            if (act.rubricaId === rubId) return; // evitar contar la misma rúbrica dos veces
+
+            const actCriterios = Array.isArray(act.criterios) ? act.criterios.map(c => String(c).trim()) : [];
+            const coincideCriterio = actCriterios.some(c => criteriosCodigos.includes(c));
+
+            if (coincideCriterio) {
+              const val = evalData.calificaciones[act.id] ? evalData.calificaciones[act.id][alumnoId] : undefined;
+              if (val !== undefined && val !== null && val !== "") {
+                totalCalificaciones++;
+              }
+            }
+          });
+        }
+
+        return totalCalificaciones;
+      }
+
+      obtenerCandidatosSoloPendientesRubrica(rubrica, ignorarAlumnoId = null) {
+        if (!this.grupoActivo || !rubrica) {
+          return { candidatos: [], esPorMenosCalificaciones: false, minCount: 0 };
+        }
+
+        const alumnos = this.grupoActivo.alumnos || [];
+        if (alumnos.length === 0) {
+          return { candidatos: [], esPorMenosCalificaciones: false, minCount: 0 };
+        }
+
+        const conteos = alumnos.map(a => ({
+          alumno: a,
+          count: this.obtenerConteoCalificacionesCriterioRubrica(rubrica, a.id)
+        }));
+
+        // 1. Buscar alumnos que NO TENGAN calificación en ese criterio (count === 0)
+        const sinCalificacion = conteos.filter(item => item.count === 0).map(item => item.alumno);
+
+        if (sinCalificacion.length > 0) {
+          let candidatos = sinCalificacion;
+          if (ignorarAlumnoId && candidatos.length > 1) {
+            const filtrados = candidatos.filter(a => a.id !== ignorarAlumnoId);
+            if (filtrados.length > 0) candidatos = filtrados;
+          }
+          return { candidatos, esPorMenosCalificaciones: false, minCount: 0 };
+        }
+
+        // 2. Si TODOS los alumnos tienen calificación en ese criterio:
+        // Seleccionar aquellos alumnos que cuenten con MENOS calificaciones en el criterio
+        const minCount = Math.min(...conteos.map(item => item.count));
+        const conMenosCalificaciones = conteos.filter(item => item.count === minCount).map(item => item.alumno);
+
+        let candidatos = conMenosCalificaciones;
+        if (ignorarAlumnoId && candidatos.length > 1) {
+          const filtrados = candidatos.filter(a => a.id !== ignorarAlumnoId);
+          if (filtrados.length > 0) candidatos = filtrados;
+        }
+
+        return { candidatos, esPorMenosCalificaciones: true, minCount };
+      }
+
       toggleSoloPendientes(valor) {
         this.soloPendientes = !!valor;
         localStorage.setItem("soloPendientes", this.soloPendientes ? "true" : "false");
-        this.actualizarUISelectorAlumnosRubrica();
+
+        if (this.evaluandoRubricaActual && this.evaluandoRubricaActual.modoMultiple && this.soloPendientes) {
+          this.seleccionarAlumnosPendientesOMenosEvaluadosRubrica();
+        } else {
+          this.actualizarUISelectorAlumnosRubrica();
+        }
+      }
+
+      seleccionarAlumnosPendientesOMenosEvaluadosRubrica() {
+        if (!this.evaluandoRubricaActual || !this.grupoActivo) return;
+        const rubrica = this.evaluandoRubricaActual.rubrica;
+        const res = this.obtenerCandidatosSoloPendientesRubrica(rubrica, null);
+        if (res.candidatos && res.candidatos.length > 0) {
+          this.evaluandoRubricaActual.alumnosSeleccionados = new Set(res.candidatos.map(a => a.id));
+          this.actualizarUISelectorAlumnosRubrica();
+          if (res.esPorMenosCalificaciones) {
+            this.mostrarToast(`⏳ Todos evaluados en este criterio. Seleccionados ${res.candidatos.length} alumno(s) con menos notas (${res.minCount}).`);
+          } else {
+            this.mostrarToast(`⏳ Seleccionados ${res.candidatos.length} alumno(s) sin calificación en este criterio.`);
+          }
+        }
       }
 
       alumnoTieneEvaluacionRubrica(rubricaId, alumnoId) {
@@ -5065,24 +5167,12 @@ import USER_DATASET from './userDataset.json';
         const alumnos = this.grupoActivo.alumnos || [];
         if (alumnos.length === 0) return;
 
-        const rubId = this.evaluandoRubricaActual.rubrica.id;
-        const pendientes = alumnos.filter(a => !this.alumnoTieneEvaluacionRubrica(rubId, a.id));
-        let candidatos = [...alumnos];
+        const rubrica = this.evaluandoRubricaActual.rubrica;
+        const res = this.obtenerCandidatosSoloPendientesRubrica(rubrica, this.evaluandoRubricaActual.alumnoId);
+        let candidatos = res.candidatos;
 
-        if (this.soloPendientes || pendientes.length > 0) {
-          if (pendientes.length === 0 && this.soloPendientes) {
-            this.mostrarToast("🎉 Todos los alumnos del grupo ya están evaluados.", 3500);
-            this.cerrarModal("modalEvaluarRubrica");
-            return;
-          }
-          if (pendientes.length > 0) {
-            candidatos = pendientes;
-          }
-        }
-
-        if (candidatos.length > 1 && this.evaluandoRubricaActual.alumnoId) {
-          const sinActual = candidatos.filter(a => a.id !== this.evaluandoRubricaActual.alumnoId);
-          if (sinActual.length > 0) candidatos = sinActual;
+        if (candidatos.length === 0) {
+          candidatos = [...alumnos];
         }
 
         const randomIdx = Math.floor(Math.random() * candidatos.length);
@@ -5094,9 +5184,13 @@ import USER_DATASET from './userDataset.json';
           if (select) {
             select.value = elegido.id;
           }
-          const tieneNota = this.alumnoTieneEvaluacionRubrica(rubId, elegido.id);
           const msgPrefix = esActivacion ? "🎲 Modo Alumno Aleatorio ACTIVADO." : "🎲 Alumno aleatorio cargado:";
-          this.mostrarToast(`${msgPrefix} ${elegido.nombre} (${tieneNota ? '✅ Evaluado' : '⏳ Pendiente'})`);
+          if (res.esPorMenosCalificaciones) {
+            this.mostrarToast(`${msgPrefix} ${elegido.nombre} (Todos evaluados; seleccionado por tener menos notas: ${res.minCount})`);
+          } else {
+            const tieneNota = this.alumnoTieneEvaluacionRubrica(rubrica.id, elegido.id);
+            this.mostrarToast(`${msgPrefix} ${elegido.nombre} (${tieneNota ? '✅ Evaluado' : '⏳ Pendiente'})`);
+          }
         }
       }
 
@@ -5172,8 +5266,16 @@ import USER_DATASET from './userDataset.json';
 
             alumnosOrdenados.forEach((alu, index) => {
               const isChecked = seleccionados.has(alu.id);
-              const tieneNota = this.alumnoTieneEvaluacionRubrica(rubId, alu.id);
+              const countCrit = this.obtenerConteoCalificacionesCriterioRubrica(this.evaluandoRubricaActual.rubrica, alu.id);
               const numDisplay = alu.orden || (index + 1);
+
+              let badgeTxt = "⏳ Pendiente";
+              let badgeBg = "background: #fef3c7; color: #92400e;";
+              if (countCrit > 0) {
+                badgeTxt = `✅ ${countCrit} ${countCrit === 1 ? 'nota' : 'notas'}`;
+                badgeBg = "background: #dcfce7; color: #166534;";
+              }
+
               const lbl = document.createElement("label");
               lbl.id = `lbl_eval_alu_${alu.id}`;
               lbl.style.cssText = `display: flex; align-items: center; gap: 8px; background: ${isChecked ? '#dbeafe' : '#f8fafc'}; border: 1px solid ${isChecked ? '#93c5fd' : '#cbd5e1'}; padding: 3px 8px; border-radius: 5px; font-size: 0.8rem; font-weight: ${isChecked ? '700' : '500'}; color: ${isChecked ? '#1e40af' : '#334155'}; cursor: pointer; user-select: none; width: 100%; transition: background 0.1s ease;`;
@@ -5181,7 +5283,7 @@ import USER_DATASET from './userDataset.json';
                 <input type="checkbox" id="chk_eval_alu_${alu.id}" value="${alu.id}" ${isChecked ? "checked" : ""} onchange="app.toggleAlumnoRubricaSeleccion('${alu.id}', this.checked)" style="cursor: pointer; width: 15px; height: 15px; accent-color: #2563eb;" />
                 <span style="font-weight: 800; color: #64748b; font-size: 0.78rem; min-width: 24px;">${numDisplay}.</span>
                 <span style="flex: 1;">${this.escapeHtml(alu.nombre)}</span>
-                <span style="font-size: 0.72rem; padding: 1px 6px; border-radius: 4px; font-weight: 700; ${tieneNota ? 'background: #dcfce7; color: #166534;' : 'background: #fef3c7; color: #92400e;'}">${tieneNota ? '✅ Evaluado' : '⏳ Pendiente'}</span>
+                <span style="font-size: 0.72rem; padding: 1px 6px; border-radius: 4px; font-weight: 700; ${badgeBg}">${badgeTxt}</span>
               `;
               grid.appendChild(lbl);
             });
@@ -5193,10 +5295,11 @@ import USER_DATASET from './userDataset.json';
             // Mantener estricto orden correlativo de clase (1 a N) sin mezclar ni alterar posiciones
             alumnos.forEach((alu, index) => {
               const numDisplay = alu.orden || (index + 1);
-              const tieneNota = this.alumnoTieneEvaluacionRubrica(rubId, alu.id);
+              const countCrit = this.obtenerConteoCalificacionesCriterioRubrica(this.evaluandoRubricaActual.rubrica, alu.id);
+              const statusLabel = countCrit > 0 ? `✅ (${countCrit} ${countCrit === 1 ? 'nota' : 'notas'})` : '⏳ (Pendiente)';
               const opt = document.createElement("option");
               opt.value = alu.id;
-              opt.textContent = `${numDisplay}. ${alu.nombre} ${tieneNota ? '✅ (Evaluado)' : '⏳ (Pendiente)'}`;
+              opt.textContent = `${numDisplay}. ${alu.nombre} ${statusLabel}`;
               select.appendChild(opt);
             });
 
@@ -5312,28 +5415,31 @@ import USER_DATASET from './userDataset.json';
         }
 
         if (dir > 0 && this.autoSiguienteAlumno && this.soloPendientes) {
+          const rubrica = this.evaluandoRubricaActual.rubrica;
+          const res = this.obtenerCandidatosSoloPendientesRubrica(rubrica, null);
+          const candidatos = res.candidatos;
+
           let nextAlu = null;
-          for (let i = currentIdx + 1; i < alumnos.length; i++) {
-            if (!this.alumnoTieneEvaluacionRubrica(rubId, alumnos[i].id)) {
-              nextAlu = alumnos[i];
-              break;
+          if (candidatos.length > 0) {
+            // Buscar el primer candidato cuya posición en la lista sea posterior a currentIdx
+            nextAlu = candidatos.find(a => alumnos.findIndex(x => x.id === a.id) > currentIdx);
+            // Si no hay posterior, dar la vuelta al primero de los candidatos
+            if (!nextAlu) {
+              nextAlu = candidatos.find(a => a.id !== this.evaluandoRubricaActual.alumnoId) || candidatos[0];
             }
           }
-          if (!nextAlu) {
-            for (let i = 0; i < currentIdx; i++) {
-              if (!this.alumnoTieneEvaluacionRubrica(rubId, alumnos[i].id)) {
-                nextAlu = alumnos[i];
-                break;
-              }
-            }
-          }
-          if (nextAlu) {
+
+          if (nextAlu && nextAlu.id !== this.evaluandoRubricaActual.alumnoId) {
             const select = document.getElementById("evalRubricaAlumnoSelect");
             if (select) select.value = nextAlu.id;
             this.cargarEvaluacionRubricaAlumno(nextAlu.id);
+
+            if (res.esPorMenosCalificaciones) {
+              this.mostrarToast(`ℹ️ Todos evaluados en este criterio; cargando alumno con menos notas (${res.minCount}): ${nextAlu.nombre}`);
+            }
             return;
           } else {
-            this.mostrarToast("ℹ️ Todos los alumnos del grupo ya están evaluados.");
+            this.mostrarToast("ℹ️ Todos los alumnos del grupo están evaluados con el mismo o mayor número de notas.");
             return;
           }
         }
@@ -5385,13 +5491,22 @@ import USER_DATASET from './userDataset.json';
           const isOrtItem = it.isOrtografia || it.titulo === "Ortografía" || (it.id && String(it.id).startsWith("item-ortografia"));
 
           if (isOrtItem) {
-            const strVal = String(currentVal !== undefined && currentVal !== null ? currentVal : "");
+            const hasVal = currentVal !== undefined && currentVal !== null && currentVal !== "";
+            const strVal = String(hasVal ? currentVal : "");
             evalControl = `
-              <div style="display: flex; gap: 3px;">
-                <button type="button" class="btn-rubrica-compact val-0 ${strVal === "0" ? "active" : ""}" onclick="app.updateRubricItemScore('${it.id}', 0)" title="Insuficiente (0)">0</button>
-                <button type="button" class="btn-rubrica-compact val-3 ${strVal === "3" ? "active" : ""}" onclick="app.updateRubricItemScore('${it.id}', 3)" title="Regular (3)">3</button>
-                <button type="button" class="btn-rubrica-compact val-6 ${strVal === "6" ? "active" : ""}" onclick="app.updateRubricItemScore('${it.id}', 6)" title="Notable (6)">6</button>
-                <button type="button" class="btn-rubrica-compact val-10 ${strVal === "10" ? "active" : ""}" onclick="app.updateRubricItemScore('${it.id}', 10)" title="Excelente (10)">10</button>
+              <div class="rubrica-btn-group ${hasVal ? 'has-selection' : ''}" style="display: flex; gap: 4px; align-items: center;">
+                <button type="button" class="btn-rubrica-compact val-0 ${strVal === "0" ? "active" : ""}" onclick="app.updateRubricItemScore('${it.id}', 0)" title="${strVal === "0" ? "0 puntos marcado (pulsa de nuevo para desmarcar y eliminar)" : "Marcar 0 puntos (Insuficiente)"}">
+                  ${strVal === "0" ? '<span class="rubrica-btn-check">✓</span>0' : '0'}
+                </button>
+                <button type="button" class="btn-rubrica-compact val-3 ${strVal === "3" ? "active" : ""}" onclick="app.updateRubricItemScore('${it.id}', 3)" title="${strVal === "3" ? "3 puntos marcado (pulsa de nuevo para desmarcar y eliminar)" : "Marcar 3 puntos (Regular)"}">
+                  ${strVal === "3" ? '<span class="rubrica-btn-check">✓</span>3' : '3'}
+                </button>
+                <button type="button" class="btn-rubrica-compact val-6 ${strVal === "6" ? "active" : ""}" onclick="app.updateRubricItemScore('${it.id}', 6)" title="${strVal === "6" ? "6 puntos marcado (pulsa de nuevo para desmarcar y eliminar)" : "Marcar 6 puntos (Notable)"}">
+                  ${strVal === "6" ? '<span class="rubrica-btn-check">✓</span>6' : '6'}
+                </button>
+                <button type="button" class="btn-rubrica-compact val-10 ${strVal === "10" ? "active" : ""}" onclick="app.updateRubricItemScore('${it.id}', 10)" title="${strVal === "10" ? "10 puntos marcado (pulsa de nuevo para desmarcar y eliminar)" : "Marcar 10 puntos (Excelente)"}">
+                  ${strVal === "10" ? '<span class="rubrica-btn-check">✓</span>10' : '10'}
+                </button>
               </div>
             `;
           } else if (this.isTipoExamen(rubrica.tipo, rubrica.titulo)) {
@@ -5424,22 +5539,44 @@ import USER_DATASET from './userDataset.json';
               </div>
             `;
           } else if (this.isTipoTrabajo(rubrica.tipo, rubrica.titulo)) {
-            const strVal = String(currentVal !== undefined && currentVal !== null ? currentVal : "");
+            const hasVal = currentVal !== undefined && currentVal !== null && currentVal !== "";
+            const strVal = String(hasVal ? currentVal : "");
             evalControl = `
-              <div style="display: flex; gap: 4px;">
-                <button type="button" class="btn-rubrica-trabajo val-s ${strVal === "0" ? "active" : ""}" onclick="app.updateRubricItemScore('${it.id}', 0)" title="Insuficiente / Suficiente Bajo (S = 0)">S (0)</button>
-                <button type="button" class="btn-rubrica-trabajo val-a ${strVal === "5" ? "active" : ""}" onclick="app.updateRubricItemScore('${it.id}', 5)" title="Aceptable (A = 5)">A (5)</button>
-                <button type="button" class="btn-rubrica-trabajo val-b ${strVal === "7" ? "active" : ""}" onclick="app.updateRubricItemScore('${it.id}', 7)" title="Bueno (B = 7)">B (7)</button>
-                <button type="button" class="btn-rubrica-trabajo val-sb ${strVal === "10" ? "active" : ""}" onclick="app.updateRubricItemScore('${it.id}', 10)" title="Sobresaliente (SB = 10)">SB (10)</button>
+              <div class="rubrica-btn-group ${hasVal ? 'has-selection' : ''}" style="display: flex; gap: 4px; align-items: center;">
+                <button type="button" class="btn-rubrica-trabajo val-s ${strVal === "0" ? "active" : ""}" onclick="app.updateRubricItemScore('${it.id}', 0)" title="${strVal === "0" ? "S (0) marcado (pulsa de nuevo para desmarcar y eliminar)" : "Marcar Insuficiente / Suficiente Bajo S (0)"}">
+                  ${strVal === "0" ? '<span class="rubrica-btn-check">✓</span>S (0)' : 'S (0)'}
+                </button>
+                <button type="button" class="btn-rubrica-trabajo val-a ${strVal === "5" ? "active" : ""}" onclick="app.updateRubricItemScore('${it.id}', 5)" title="${strVal === "5" ? "A (5) marcado (pulsa de nuevo para desmarcar y eliminar)" : "Marcar Aceptable A (5)"}">
+                  ${strVal === "5" ? '<span class="rubrica-btn-check">✓</span>A (5)' : 'A (5)'}
+                </button>
+                <button type="button" class="btn-rubrica-trabajo val-b ${strVal === "7" ? "active" : ""}" onclick="app.updateRubricItemScore('${it.id}', 7)" title="${strVal === "7" ? "B (7) marcado (pulsa de nuevo para desmarcar y eliminar)" : "Marcar Bueno B (7)"}">
+                  ${strVal === "7" ? '<span class="rubrica-btn-check">✓</span>B (7)' : 'B (7)'}
+                </button>
+                <button type="button" class="btn-rubrica-trabajo val-sb ${strVal === "10" ? "active" : ""}" onclick="app.updateRubricItemScore('${it.id}', 10)" title="${strVal === "10" ? "SB (10) marcado (pulsa de nuevo para desmarcar y eliminar)" : "Marcar Sobresaliente SB (10)"}">
+                  ${strVal === "10" ? '<span class="rubrica-btn-check">✓</span>SB (10)' : 'SB (10)'}
+                </button>
               </div>
             `;
           } else {
-            const strVal = String(currentVal !== undefined && currentVal !== null ? currentVal : "");
+            const hasVal = currentVal !== undefined && currentVal !== null && currentVal !== "";
+            const strVal = String(hasVal ? currentVal : "");
             evalControl = `
-              <div style="display: flex; gap: 4px; align-items: center;">
-                <button type="button" class="btn-rubrica-compact face-selected-10 ${strVal === "10" ? "active" : ""}" onclick="app.updateRubricItemScore('${it.id}', 10)" title="Sobresaliente / Excelente (10 pts)" style="padding: 4px 10px; font-weight: 800; font-size: 0.84rem; cursor: pointer; border-radius: 6px;">😃 10</button>
-                <button type="button" class="btn-rubrica-compact face-selected-5 ${strVal === "5" ? "active" : ""}" onclick="app.updateRubricItemScore('${it.id}', 5)" title="Aceptable / Regular (5 pts)" style="padding: 4px 10px; font-weight: 800; font-size: 0.84rem; cursor: pointer; border-radius: 6px;">😐 5</button>
-                <button type="button" class="btn-rubrica-compact face-selected-0 ${strVal === "0" ? "active" : ""}" onclick="app.updateRubricItemScore('${it.id}', 0)" title="Insuficiente / Cero (0 pts)" style="padding: 4px 10px; font-weight: 800; font-size: 0.84rem; cursor: pointer; border-radius: 6px;">😢 0</button>
+              <div class="rubrica-btn-group ${hasVal ? 'has-selection' : ''}" style="display: flex; gap: 4px; align-items: center;">
+                <button type="button" class="btn-rubrica-compact val-0 ${strVal === "0" ? "active" : ""}" onclick="app.updateRubricItemScore('${it.id}', 0)" title="${strVal === "0" ? "0 puntos marcado (pulsa de nuevo para desmarcar)" : "Marcar 0 puntos"}">
+                  0
+                </button>
+                <button type="button" class="btn-rubrica-compact val-3 ${strVal === "3" ? "active" : ""}" onclick="app.updateRubricItemScore('${it.id}', 3)" title="${strVal === "3" ? "3 puntos marcado (pulsa de nuevo para desmarcar)" : "Marcar 3 puntos"}">
+                  3
+                </button>
+                <button type="button" class="btn-rubrica-compact val-5 ${strVal === "5" ? "active" : ""}" onclick="app.updateRubricItemScore('${it.id}', 5)" title="${strVal === "5" ? "5 puntos marcado (pulsa de nuevo para desmarcar)" : "Marcar 5 puntos"}">
+                  5
+                </button>
+                <button type="button" class="btn-rubrica-compact val-7 ${strVal === "7" ? "active" : ""}" onclick="app.updateRubricItemScore('${it.id}', 7)" title="${strVal === "7" ? "7 puntos marcado (pulsa de nuevo para desmarcar)" : "Marcar 7 puntos"}">
+                  7
+                </button>
+                <button type="button" class="btn-rubrica-compact val-10 ${strVal === "10" ? "active" : ""}" onclick="app.updateRubricItemScore('${it.id}', 10)" title="${strVal === "10" ? "10 puntos marcado (pulsa de nuevo para desmarcar)" : "Marcar 10 puntos"}">
+                  10
+                </button>
               </div>
             `;
           }
@@ -5648,19 +5785,38 @@ import USER_DATASET from './userDataset.json';
 
             if (relevantAverages.length > 0) {
               const gradeVal = relevantAverages.reduce((a, b) => a + b, 0) / relevantAverages.length;
-              evalData.calificaciones[act.id][tId] = Math.round(gradeVal * 100) / 100;
+              const roundedGrade = Math.round(gradeVal * 100) / 100;
+              evalData.calificaciones[act.id][tId] = roundedGrade;
+              if (window.supabaseSync && this.grupoActivo) {
+                window.supabaseSync.saveGrade(this.grupoActivo.id, tId, act.id, roundedGrade).catch(e => console.warn(e));
+              }
             } else if (actCrits.length === 0 && summary.overallGrade !== null) {
-              evalData.calificaciones[act.id][tId] = Math.round(summary.overallGrade * 100) / 100;
+              const roundedGrade = Math.round(summary.overallGrade * 100) / 100;
+              evalData.calificaciones[act.id][tId] = roundedGrade;
+              if (window.supabaseSync && this.grupoActivo) {
+                window.supabaseSync.saveGrade(this.grupoActivo.id, tId, act.id, roundedGrade).catch(e => console.warn(e));
+              }
             } else {
               delete evalData.calificaciones[act.id][tId];
+              if (window.supabaseSync && this.grupoActivo) {
+                window.supabaseSync.saveGrade(this.grupoActivo.id, tId, act.id, null).catch(e => console.warn(e));
+              }
             }
           });
         });
 
-        // Desplegar automáticamente las columnas/secciones evaluadas
-        this.desplegarSeccionesPorRubrica(rubActs);
+        if (window.supabaseSync && this.grupoActivo) {
+          targetIds.forEach(tId => {
+            window.supabaseSync.saveRubricEvaluation(this.grupoActivo.id, evalKey, rubrica.id, tId, itemScores, this.data).catch((err) => {
+              console.warn('[Supabase saveRubricEvaluation Notice]:', err);
+            });
+          });
+        }
 
-        this.guardarDatos();
+        // DESACTIVADO POR REQUERIMIENTO: Mantener secciones plegadas mostrando la nota media
+        // this.desplegarSeccionesPorRubrica(rubActs);
+
+        this.guardarDatos(true);
 
         if (this.vistaActiva === "cuaderno") {
           this.renderizarCuaderno();
@@ -5678,10 +5834,13 @@ import USER_DATASET from './userDataset.json';
         if (currentVal !== undefined && currentVal !== null && currentVal !== "" && String(currentVal) === String(val)) {
           // Segundo clic en la misma calificación: deseleccionar / anular nota
           delete this.evaluandoRubricaActual.itemScores[itemId];
+          this.renderizarContenidoEvaluacionAlumno();
+          this.guardarEvaluacionRubricaAlumnoInterno(true);
         } else {
           this.evaluandoRubricaActual.itemScores[itemId] = val;
+          // Guardar automáticamente y pasar directamente al siguiente alumno
+          this.guardarEvaluacionRubricaAlumno();
         }
-        this.renderizarContenidoEvaluacionAlumno();
       }
 
       anularLimpiarEvaluacionRubricaAlumno() {
@@ -5787,33 +5946,30 @@ import USER_DATASET from './userDataset.json';
               this.seleccionarAlumnoAleatorioRubricaInterno(false);
               return;
             } else if (this.soloPendientes) {
-              // Buscar el primer alumno sin evaluar a partir de currentIdx + 1
+              const res = this.obtenerCandidatosSoloPendientesRubrica(rubrica, null);
+              const candidatos = res.candidatos;
+
               let nextAlu = null;
-              for (let i = currentIdx + 1; i < alumnos.length; i++) {
-                if (!this.alumnoTieneEvaluacionRubrica(rubrica.id, alumnos[i].id)) {
-                  nextAlu = alumnos[i];
-                  break;
+              if (candidatos.length > 0) {
+                // Buscar el primer candidato cuya posición en la lista sea posterior a currentIdx
+                nextAlu = candidatos.find(a => alumnos.findIndex(x => x.id === a.id) > currentIdx);
+                // Si no hay posterior, dar la vuelta al primero de los candidatos
+                if (!nextAlu) {
+                  nextAlu = candidatos.find(a => a.id !== alumnoId) || candidatos[0];
                 }
               }
 
-              // Si no se encuentra más adelante en la lista, buscar si queda algún pendiente antes
-              if (!nextAlu) {
-                for (let i = 0; i < currentIdx; i++) {
-                  if (!this.alumnoTieneEvaluacionRubrica(rubrica.id, alumnos[i].id)) {
-                    nextAlu = alumnos[i];
-                    break;
-                  }
-                }
-              }
-
-              if (nextAlu) {
+              if (nextAlu && nextAlu.id !== alumnoId) {
                 const aluObj = alumnos.find(a => a.id === alumnoId);
                 const aluNombre = aluObj ? aluObj.nombre : "Alumno";
-                this.mostrarToast(`💾 Nota de ${aluNombre} guardada. Cargando siguiente pendiente: ${nextAlu.nombre}`);
+                if (res.esPorMenosCalificaciones) {
+                  this.mostrarToast(`💾 Nota de ${aluNombre} guardada. Criterio completo en todos; cargando alumno con menos notas (${res.minCount}): ${nextAlu.nombre}`);
+                } else {
+                  this.mostrarToast(`💾 Nota de ${aluNombre} guardada. Cargando siguiente pendiente: ${nextAlu.nombre}`);
+                }
                 this.cargarEvaluacionRubricaAlumno(nextAlu.id);
                 return;
               } else {
-                // Si no quedan más alumnos pendientes por evaluar
                 this.mostrarToast(`🎉 Se ha completado la evaluación del grupo. Todos los alumnos están evaluados.`, 4000);
                 this.cargarEvaluacionRubricaAlumno(alumnoId);
                 return;
@@ -5853,6 +6009,9 @@ import USER_DATASET from './userDataset.json';
           `¿Estás seguro de que deseas eliminar la rúbrica <strong>"${rub.titulo}"</strong>?`,
           () => {
             this.grupoActivo.rubricas = this.grupoActivo.rubricas.filter(r => r.id !== rubricaId);
+            if (window.supabaseSync) {
+              window.supabaseSync.deleteRubric(rubricaId).catch(err => console.warn('[Supabase deleteRubric Notice]:', err));
+            }
             this.guardarDatos();
             this.renderizarRubricasView();
             const modalCat = document.getElementById("modalCatalogoRubricas");
@@ -5913,9 +6072,7 @@ import USER_DATASET from './userDataset.json';
         if (this.grupoActivo && this.grupoActivo.secciones) {
           this.seccionesPlegadas = new Set();
           this.grupoActivo.secciones.forEach(sec => {
-            if (!this.seccionTieneEvaluaciones(sec.id, evalKey)) {
-              this.seccionesPlegadas.add(sec.id);
-            }
+            this.seccionesPlegadas.add(sec.id);
           });
         }
 
@@ -5931,21 +6088,33 @@ import USER_DATASET from './userDataset.json';
         if (found) {
           this.grupoActivo = found;
           this.data.grupoActivoId = found.id;
+
           // Limpiar de forma absoluta los estados de selección para aislar completamente entre grupos
           this.alumnoCuadernoSeleccionadoId = null;
           this.evaluandoRubricaActual = null;
           this.diarioAlumnosSelIds = null;
+          this.filtroDiarioActividadesIds = null;
+          this.filtroRubricaActividadesIds = null;
 
           if (this.grupoActivo.secciones) {
             this.seccionesPlegadas = new Set();
             this.grupoActivo.secciones.forEach(sec => {
-              if (!this.seccionTieneEvaluaciones(sec.id, this.evaluacionActiva)) {
-                this.seccionesPlegadas.add(sec.id);
-              }
+              this.seccionesPlegadas.add(sec.id);
             });
           }
+
+          // Resetear el scroll de los contenedores para que la vista del nuevo grupo empiece arriba a la izquierda
+          const cCont = document.getElementById("cuadernoTableContainer");
+          if (cCont) { cCont.scrollTop = 0; cCont.scrollLeft = 0; }
+          const rCont = document.getElementById("resultadosTableContainer");
+          if (rCont) { rCont.scrollTop = 0; rCont.scrollLeft = 0; }
+
+          // Quitar clases de scroll acumuladas en el body
+          document.body.classList.remove("scrolled-actividades", "header-revealed");
+
           this.guardarDatos();
-          this.actualizarUI();
+          // Sincronizar actualización inmediata e instantánea de la interfaz completa
+          this.ejecutarActualizarUI();
         }
       }
 
@@ -5981,6 +6150,7 @@ import USER_DATASET from './userDataset.json';
 
           this.normalizarTiposActividadesYRubricas();
           this.renderizarSelectGrupos();
+
           const wrapCuaderno = document.getElementById("evalDropdownWrapCuaderno") || document.getElementById("evalSelectorCuadernoWrap");
           const tabsResultados = document.getElementById("evalTabsResultados");
           const selCuaderno = document.getElementById("selectEvaluacionCuaderno");
@@ -6021,11 +6191,16 @@ import USER_DATASET from './userDataset.json';
             header.style.background = paletaHeader[idx % paletaHeader.length];
           }
 
+          // Re-renderizar inmediatamente la vista actualmente activa
           if (this.vistaActiva === "cuaderno") this.renderizarCuaderno();
-          if (this.vistaActiva === "resultados") this.renderizarResultados();
-          if (this.vistaActiva === "configuracion") this.renderizarConfiguracion();
+          else if (this.vistaActiva === "resultados") this.renderizarResultados();
+          else if (this.vistaActiva === "rubricas" && typeof this.renderizarRubricasView === "function") this.renderizarRubricasView();
+          else if (this.vistaActiva === "diario" && typeof this.renderizarDiarioView === "function") this.renderizarDiarioView();
+          else if (this.vistaActiva === "asistencia" && typeof this.renderizarAsistenciaView === "function") this.renderizarAsistenciaView();
+          else if (this.vistaActiva === "incidencias" && typeof this.renderizarIncidenciasView === "function") this.renderizarIncidenciasView();
+          else if (this.vistaActiva === "configuracion") this.renderizarConfiguracion();
         } catch (err) {
-          console.error("❌ Error durante el renderizado de la interfaz (actualizarUI):", err);
+          console.warn("❌ Error durante el renderizado de la interfaz (actualizarUI):", err);
         } finally {
           this.ocultarSplashScreen();
         }
@@ -6138,9 +6313,7 @@ import USER_DATASET from './userDataset.json';
         if (!this.seccionesPlegadas && this.grupoActivo && this.grupoActivo.secciones) {
           this.seccionesPlegadas = new Set();
           this.grupoActivo.secciones.forEach(sec => {
-            if (!this.seccionTieneEvaluaciones(sec.id)) {
-              this.seccionesPlegadas.add(sec.id);
-            }
+            this.seccionesPlegadas.add(sec.id);
           });
         }
 
@@ -6214,7 +6387,7 @@ import USER_DATASET from './userDataset.json';
         thAlu1.appendChild(resizerAlu);
         trSec.appendChild(thAlu1);
 
-        const secciones = this.grupoActivo.secciones || [];
+        const secciones = this.ordenarSeccionesCreciente(this.grupoActivo.secciones || []);
         let actividades = [];
 
         if (this.filtroDiarioActividadesIds && Array.isArray(this.filtroDiarioActividadesIds) && this.filtroDiarioActividadesIds.length > 0) {
@@ -6237,7 +6410,12 @@ import USER_DATASET from './userDataset.json';
         const getSecActs = (secId) => {
           return actividades.filter(a => {
             if (!this.mostrarOcultas && a.oculta) return false;
-            if (a.seccionId !== secId) return false;
+            const normSecId = String(secId || "");
+            const normActSecId = String(a.seccionId || "");
+            const isSecMatch = normActSecId === normSecId || 
+                               (normActSecId && normSecId && normActSecId.endsWith("-" + normSecId)) || 
+                               (normSecId && normActSecId && normSecId.endsWith("-" + normActSecId));
+            if (!isSecMatch) return false;
             if (this.filtroDiarioActividadesIds && Array.isArray(this.filtroDiarioActividadesIds)) {
               if (!this.filtroDiarioActividadesIds.includes(a.id)) return false;
             }
@@ -6692,24 +6870,16 @@ import USER_DATASET from './userDataset.json';
                 tdPlegada.style.verticalAlign = "middle";
                 tdPlegada.style.background = "#f8fafc";
                 tdPlegada.style.cursor = "pointer";
-                tdPlegada.onclick = () => this.toggleSeccionPlegada(sec.id);
                 this.aplicarAnchoColumna(tdPlegada, `sec-plegada-${sec.id}`, "56px");
                 
-                const notasValidas = [];
-                secActs.forEach(act => {
-                  const evKeyAct = act._evKey || this.evaluacionActiva;
-                  const evalObjAct = (this.grupoActivo.evaluaciones && this.grupoActivo.evaluaciones[evKeyAct]) ? this.grupoActivo.evaluaciones[evKeyAct] : evalData;
-                  const califsAct = evalObjAct.calificaciones || {};
-                  const nota = califsAct[act.id] ? califsAct[act.id][alu.id] : undefined;
-                  if (nota !== undefined && nota !== null && nota !== "" && !isNaN(nota)) {
-                    notasValidas.push(Number(nota));
-                  }
-                });
+                const { actividadesEvaluadasInfo, tooltipBoxHtml } = this.generarTooltipSeccionMedia(alu, sec, secActs, evalData);
+                tdPlegada.onclick = (e) => this.modalEditarNotasSeccion(alu.id, sec.id, e);
 
-                if (notasValidas.length > 0) {
+                if (actividadesEvaluadasInfo.length > 0) {
+                  const notasValidas = actividadesEvaluadasInfo.map(a => a.nota);
                   const mediaSec = notasValidas.reduce((a, b) => a + b, 0) / notasValidas.length;
                   const colorCls = this.obtenerClaseColorNota(mediaSec);
-                  tdPlegada.innerHTML = `<span class="grade-badge ${colorCls}" style="font-weight: 800; font-size: 0.84rem; padding: 2px 6px; border-radius: 4px; border: 1px solid; display: inline-block;" title="Media de ${notasValidas.length} actividades en ${sec.nombre}">${mediaSec.toFixed(1)}</span>`;
+                  tdPlegada.innerHTML = `<span class="grade-badge ${colorCls} sec-tooltip-container" style="font-weight: 800; font-size: 0.84rem; padding: 2px 6px; border-radius: 4px; border: 1px solid; display: inline-block;">${mediaSec.toFixed(1)}${tooltipBoxHtml}</span>`;
                 } else {
                   tdPlegada.innerHTML = `<span style="color: #cbd5e1; font-weight: 600;">—</span>`;
                 }
@@ -6720,24 +6890,18 @@ import USER_DATASET from './userDataset.json';
                 tdSecMedia.style.textAlign = "center";
                 tdSecMedia.style.verticalAlign = "middle";
                 tdSecMedia.style.background = "#f8fafc";
+                tdSecMedia.style.cursor = "pointer";
                 this.aplicarAnchoColumna(tdSecMedia, `sec-media-${sec.id}`, "88px");
 
                 const allSecActs = (evalData.actividades || []).filter(a => a.seccionId === sec.id && (!a.oculta || this.mostrarOcultas));
-                const notasValidas = [];
-                allSecActs.forEach(act => {
-                  const evKeyAct = act._evKey || this.evaluacionActiva;
-                  const evalObjAct = (this.grupoActivo.evaluaciones && this.grupoActivo.evaluaciones[evKeyAct]) ? this.grupoActivo.evaluaciones[evKeyAct] : evalData;
-                  const califsAct = evalObjAct.calificaciones || {};
-                  const nota = califsAct[act.id] ? califsAct[act.id][alu.id] : undefined;
-                  if (nota !== undefined && nota !== null && nota !== "" && !isNaN(nota)) {
-                    notasValidas.push(Number(nota));
-                  }
-                });
+                const { actividadesEvaluadasInfo, tooltipBoxHtml } = this.generarTooltipSeccionMedia(alu, sec, allSecActs, evalData);
+                tdSecMedia.onclick = (e) => this.modalEditarNotasSeccion(alu.id, sec.id, e);
 
-                if (notasValidas.length > 0) {
+                if (actividadesEvaluadasInfo.length > 0) {
+                  const notasValidas = actividadesEvaluadasInfo.map(a => a.nota);
                   const mediaSec = notasValidas.reduce((a, b) => a + b, 0) / notasValidas.length;
                   const colorCls = this.obtenerClaseColorNota(mediaSec);
-                  tdSecMedia.innerHTML = `<span class="grade-badge ${colorCls}" style="font-weight: 800; font-size: 0.84rem; padding: 2px 6px; border-radius: 4px; border: 1px solid; display: inline-block;" title="Media de ${notasValidas.length} actividades evaluadas en ${sec.nombre}">${mediaSec.toFixed(1)}</span>`;
+                  tdSecMedia.innerHTML = `<span class="grade-badge ${colorCls} sec-tooltip-container" style="font-weight: 800; font-size: 0.84rem; padding: 2px 6px; border-radius: 4px; border: 1px solid; display: inline-block;">${mediaSec.toFixed(1)}${tooltipBoxHtml}</span>`;
                 } else {
                   tdSecMedia.innerHTML = `<span style="color: #cbd5e1; font-weight: 600;">—</span>`;
                 }
@@ -6765,6 +6929,18 @@ import USER_DATASET from './userDataset.json';
 
           tbody.appendChild(tr);
         });
+
+        // Fila espaciadora de desplazamiento al final de la tabla para garantizar que todos los alumnos se puedan ver y desplazar holgadamente
+        const trSpacer = document.createElement("tr");
+        trSpacer.className = "table-scroll-spacer-row";
+        trSpacer.style.height = "60px";
+        const tdSpacer = document.createElement("td");
+        tdSpacer.colSpan = 100;
+        tdSpacer.style.border = "none";
+        tdSpacer.style.background = "transparent";
+        tdSpacer.style.pointerEvents = "none";
+        trSpacer.appendChild(tdSpacer);
+        tbody.appendChild(trSpacer);
 
         if (containerTabla) {
           containerTabla.scrollLeft = prevScrollLeft;
@@ -6964,6 +7140,204 @@ import USER_DATASET from './userDataset.json';
         });
       }
 
+      generarTooltipSeccionMedia(alu, sec, secActs, evalData) {
+        const actividadesEvaluadasInfo = [];
+        (secActs || []).forEach(act => {
+          const evKeyAct = act._evKey || this.evaluacionActiva;
+          const evalObjAct = (this.grupoActivo.evaluaciones && this.grupoActivo.evaluaciones[evKeyAct]) ? this.grupoActivo.evaluaciones[evKeyAct] : evalData;
+          const califsAct = evalObjAct.calificaciones || {};
+          const nota = califsAct[act.id] ? califsAct[act.id][alu.id] : undefined;
+          if (nota !== undefined && nota !== null && nota !== "" && !isNaN(nota)) {
+            let fechaFmt = act.fechaCreacion || act.fecha || "";
+            if (fechaFmt && fechaFmt.includes("-")) {
+              const parts = fechaFmt.split("-");
+              if (parts.length === 3) fechaFmt = `${parts[2]}/${parts[1]}/${parts[0]}`;
+            }
+            actividadesEvaluadasInfo.push({
+              id: act.id,
+              nombre: act.nombre,
+              nota: Number(nota),
+              fecha: fechaFmt || "Sin fecha"
+            });
+          }
+        });
+
+        let listHtml = "";
+        if (actividadesEvaluadasInfo.length > 0) {
+          listHtml = `<ul class="sec-tooltip-list">` +
+            actividadesEvaluadasInfo.map(a => `
+              <li>
+                <span class="act-name">${this.escapeHtml(a.nombre)}</span>:
+                <strong class="act-score">${a.nota.toFixed(1)}</strong>
+                <span class="act-date">(${this.escapeHtml(a.fecha)})</span>
+              </li>
+            `).join("") +
+            `</ul>`;
+        } else {
+          listHtml = `<div class="sec-tooltip-empty">Sin actividades evaluadas en esta sección</div>`;
+        }
+
+        const tooltipBoxHtml = `
+          <div class="sec-tooltip-box">
+            <div class="sec-tooltip-student">👤 ${this.escapeHtml(alu.nombre)}</div>
+            <div class="sec-tooltip-section">📁 ${this.escapeHtml(sec.nombre)}</div>
+            <div class="sec-tooltip-header">Actividades evaluadas (${actividadesEvaluadasInfo.length}):</div>
+            ${listHtml}
+          </div>
+        `;
+
+        return {
+          actividadesEvaluadasInfo,
+          tooltipBoxHtml
+        };
+      }
+
+      modalEditarNotasSeccion(aluId, secId, event) {
+        if (event) event.stopPropagation();
+        if (!this.grupoActivo) return;
+
+        const alu = (this.grupoActivo.alumnos || []).find(a => a.id === aluId);
+        const sec = (this.grupoActivo.secciones || []).find(s => s.id === secId);
+        if (!alu || !sec) return;
+
+        this.editarSeccionContexto = { aluId, secId };
+
+        const titulo = document.getElementById("modalEditarNotasSeccionTitulo");
+        if (titulo) {
+          titulo.textContent = `📝 Notas de ${sec.nombre} — ${alu.nombre}`;
+        }
+
+        const cuerpo = document.getElementById("modalEditarNotasSeccionCuerpo");
+        if (!cuerpo) return;
+
+        const evalKey = this.evaluacionActiva || "eval1";
+        const evalObj = (this.grupoActivo.evaluaciones && this.grupoActivo.evaluaciones[evalKey]) ? this.grupoActivo.evaluaciones[evalKey] : {};
+        const actividades = (evalObj.actividades || []).filter(a => a.seccionId === secId && (!a.oculta || this.mostrarOcultas));
+        const calificaciones = evalObj.calificaciones || {};
+
+        if (actividades.length === 0) {
+          cuerpo.innerHTML = `
+            <div style="text-align: center; padding: 24px; color: #64748b;">
+              <p style="font-weight: 700; margin-bottom: 6px;">No hay actividades creadas en esta sección.</p>
+              <p style="font-size: 0.85rem;">Puedes crear nuevas actividades desde el menú «1. Actividades y Rúbricas».</p>
+            </div>
+          `;
+        } else {
+          let html = `
+            <div style="margin-bottom: 12px; font-size: 0.86rem; color: #475569; background: #f8fafc; padding: 10px 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+              <span>👤 <strong>Alumno:</strong> ${this.escapeHtml(alu.nombre)}</span> &nbsp;|&nbsp;
+              <span>📁 <strong>Sección:</strong> ${this.escapeHtml(sec.nombre)}</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+          `;
+
+          actividades.forEach(act => {
+            const califsAct = calificaciones[act.id] || {};
+            const nota = califsAct[alu.id] !== undefined ? califsAct[alu.id] : "";
+            let fechaFmt = act.fechaCreacion || act.fecha || "";
+            if (fechaFmt && fechaFmt.includes("-")) {
+              const parts = fechaFmt.split("-");
+              if (parts.length === 3) fechaFmt = `${parts[2]}/${parts[1]}/${parts[0]}`;
+            }
+
+            const esRubrica = act.metodo === "rubrica" && act.rubricaId;
+
+            html += `
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                <div style="flex: 1; min-width: 0;">
+                  <div style="font-weight: 700; font-size: 0.9rem; color: #1e293b; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">
+                    ${this.escapeHtml(act.nombre)}
+                  </div>
+                  <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                    <span>📅 ${fechaFmt || "Sin fecha"}</span>
+                    <span style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; border: 1px solid #e2e8f0; font-weight: 600;">
+                      ${act.tipo || "Actividad"} ${esRubrica ? "📊 Rúbrica" : ""}
+                    </span>
+                  </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+                  ${esRubrica ? `
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="app.abrirEvaluacionRubricaDirecta('${act.id}', '${alu.id}')" style="font-size: 0.76rem; padding: 4px 8px; background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe;" title="Evaluar criterios de la rúbrica">
+                      📊 Rúbrica
+                    </button>
+                  ` : ""}
+                  <input type="number" min="0" max="10" step="0.1"
+                    class="form-control inp-nota-modal-sec"
+                    data-act-id="${act.id}"
+                    value="${nota !== undefined && nota !== null ? nota : ""}"
+                    placeholder="—"
+                    style="width: 72px; text-align: center; font-weight: 800; font-size: 0.95rem; border-color: #94a3b8;" />
+                </div>
+              </div>
+            `;
+          });
+
+          html += `</div>`;
+          cuerpo.innerHTML = html;
+        }
+
+        this.abrirModal("modalEditarNotasSeccion");
+      }
+
+      guardarNotasEditarSeccion() {
+        if (!this.editarSeccionContexto || !this.grupoActivo) {
+          this.cerrarModal("modalEditarNotasSeccion");
+          return;
+        }
+
+        const { aluId, secId } = this.editarSeccionContexto;
+        const evalKey = this.evaluacionActiva || "eval1";
+        if (!this.grupoActivo.evaluaciones) this.grupoActivo.evaluaciones = {};
+        if (!this.grupoActivo.evaluaciones[evalKey]) this.grupoActivo.evaluaciones[evalKey] = { actividades: [], calificaciones: {} };
+        const evalObj = this.grupoActivo.evaluaciones[evalKey];
+        if (!evalObj.calificaciones) evalObj.calificaciones = {};
+
+        const inps = document.querySelectorAll(".inp-nota-modal-sec");
+
+        inps.forEach(inp => {
+          const actId = inp.getAttribute("data-act-id");
+          if (!actId) return;
+          if (!evalObj.calificaciones[actId]) evalObj.calificaciones[actId] = {};
+
+          const rawVal = inp.value.trim().replace(",", ".");
+          if (rawVal === "") {
+            delete evalObj.calificaciones[actId][aluId];
+          } else {
+            const num = parseFloat(rawVal);
+            if (!isNaN(num) && num >= 0 && num <= 10) {
+              evalObj.calificaciones[actId][aluId] = Math.round(num * 100) / 100;
+            }
+          }
+        });
+
+        this.guardarDatos(true);
+        this.cerrarModal("modalEditarNotasSeccion");
+        this.renderizarCuaderno();
+        this.mostrarToast("✅ Notas de la sección actualizadas correctamente.");
+      }
+
+      desplegarSeccionDesdeModal() {
+        if (this.editarSeccionContexto && this.editarSeccionContexto.secId) {
+          if (!this.seccionesPlegadas) this.seccionesPlegadas = new Set();
+          this.seccionesPlegadas.delete(this.editarSeccionContexto.secId);
+          this.cerrarModal("modalEditarNotasSeccion");
+          this.renderizarCuaderno();
+          this.mostrarToast("📂 Sección desplegada en el cuaderno.");
+        }
+      }
+
+      abrirEvaluacionRubricaDirecta(actId, aluId) {
+        this.cerrarModal("modalEditarNotasSeccion");
+        if (!this.grupoActivo) return;
+        const evalKey = this.evaluacionActiva || "eval1";
+        const evalObj = (this.grupoActivo.evaluaciones && this.grupoActivo.evaluaciones[evalKey]) ? this.grupoActivo.evaluaciones[evalKey] : {};
+        const act = (evalObj.actividades || []).find(a => a.id === actId);
+        const alu = (this.grupoActivo.alumnos || []).find(a => a.id === aluId);
+        if (act && alu) {
+          this.abrirCalificarRubrica(act, alu);
+        }
+      }
+
       limpiarFiltroRubricaColumnas() {
         this.filtroRubricaActividadesIds = null;
         this.renderizarCuaderno();
@@ -7012,6 +7386,9 @@ import USER_DATASET from './userDataset.json';
                 evalData.actividades = evalData.actividades.filter(a => a.id !== actId);
                 if (evalData.calificaciones && evalData.calificaciones[actId]) {
                   delete evalData.calificaciones[actId];
+                }
+                if (window.supabaseSync) {
+                  window.supabaseSync.deleteActivity(actId).catch(err => console.warn('[Supabase deleteActivity Notice]:', err));
                 }
               });
             }
@@ -7096,66 +7473,38 @@ import USER_DATASET from './userDataset.json';
       crearControlCalificacion(act, alu, valor) {
         const wrap = document.createElement("div");
 
-        // MÉTODO: SISTEMA DE CARITAS
+        // MÉTODO: SISTEMA DE BOTONES DE EVALUACIÓN RÁPIDA (0, 3, 5, 7, 10)
         if (act.metodo === "caritas") {
-          if (valor !== undefined && valor !== null && valor !== "") {
-            // Ya calificado: mostrar solo la carita seleccionada con su puntuación (10, 5, 0)
-            const v = Number(valor);
-            let faceClass = "face-selected-10";
-            let faceEmoji = "😁";
-            if (v === 5) { faceClass = "face-selected-5"; faceEmoji = "😐"; }
-            if (v === 0) { faceClass = "face-selected-0"; faceEmoji = "🙁"; }
+          const box = document.createElement("div");
+          box.className = "faces-container";
 
-            const selBtn = document.createElement("button");
-            selBtn.className = faceClass;
-            selBtn.title = "Haz clic para borrar la calificación";
-            selBtn.innerHTML = `${faceEmoji} ${v}`;
-            selBtn.onclick = (e) => {
+          const currentVal = (valor !== undefined && valor !== null && valor !== "") ? Number(valor) : null;
+          const scores = [0, 3, 5, 7, 10];
+
+          scores.forEach((s) => {
+            const isSelected = currentVal !== null && currentVal === s;
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = `quick-eval-btn quick-eval-btn-${s} ${isSelected ? "selected" : ""}`;
+            btn.title = isSelected ? `${s} pts (Haz clic para desmarcar)` : `${s} pts`;
+            btn.innerHTML = `${s}`;
+
+            btn.onclick = (e) => {
               e.stopPropagation();
               this.seleccionarAlumnoCuaderno(alu.id);
-              this.guardarCalificacion(act.id, alu.id, undefined);
-            };
-            wrap.appendChild(selBtn);
-          } else {
-            // Sin calificar: mostrar las 3 caritas (10, 5, 0)
-            const box = document.createElement("div");
-            box.className = "faces-container";
-
-            const btn10 = document.createElement("button");
-            btn10.className = "face-btn";
-            btn10.title = "10 puntos";
-            btn10.innerHTML = "😁 10";
-            btn10.onclick = (e) => {
-              e.stopPropagation();
-              this.seleccionarAlumnoCuaderno(alu.id);
-              this.guardarCalificacion(act.id, alu.id, 10);
+              if (isSelected) {
+                // Desmarcar si se vuelve a presionar
+                this.guardarCalificacion(act.id, alu.id, undefined);
+              } else {
+                // Marcar la opción seleccionada
+                this.guardarCalificacion(act.id, alu.id, s);
+              }
             };
 
-            const btn5 = document.createElement("button");
-            btn5.className = "face-btn";
-            btn5.title = "5 puntos";
-            btn5.innerHTML = "😐 5";
-            btn5.onclick = (e) => {
-              e.stopPropagation();
-              this.seleccionarAlumnoCuaderno(alu.id);
-              this.guardarCalificacion(act.id, alu.id, 5);
-            };
+            box.appendChild(btn);
+          });
 
-            const btn0 = document.createElement("button");
-            btn0.className = "face-btn";
-            btn0.title = "0 puntos";
-            btn0.innerHTML = "🙁 0";
-            btn0.onclick = (e) => {
-              e.stopPropagation();
-              this.seleccionarAlumnoCuaderno(alu.id);
-              this.guardarCalificacion(act.id, alu.id, 0);
-            };
-
-            box.appendChild(btn10);
-            box.appendChild(btn5);
-            box.appendChild(btn0);
-            wrap.appendChild(box);
-          }
+          wrap.appendChild(box);
           return wrap;
         }
 
@@ -7279,8 +7628,8 @@ import USER_DATASET from './userDataset.json';
           delete evalData.calificaciones[actividadId][alumnoId];
         } else {
           evalData.calificaciones[actividadId][alumnoId] = valor;
-          // Desplegar automáticamente la columna/sección que se ha evaluado
-          this.desplegarSeccionPorActividad(actividadId);
+          // DESACTIVADO POR REQUERIMIENTO: Mantener secciones plegadas
+          // this.desplegarSeccionPorActividad(actividadId);
         }
 
         if (autoAvanzar) {
@@ -7299,7 +7648,9 @@ import USER_DATASET from './userDataset.json';
 
         // Sincronización directa, atómica e instantánea con la tabla 'calificaciones' de Supabase
         if (window.supabaseSync && this.grupoActivo && this.grupoActivo.id) {
-          window.supabaseSync.saveGrade(this.grupoActivo.id, alumnoId, actividadId, valor);
+          window.supabaseSync.saveGrade(this.grupoActivo.id, alumnoId, actividadId, valor).catch((err) => {
+            console.warn('[Supabase saveGrade Notice]:', err);
+          });
         }
 
         this.guardarDatos();
@@ -7640,6 +7991,18 @@ import USER_DATASET from './userDataset.json';
           tr.appendChild(tdFinal);
           if (tbody) tbody.appendChild(tr);
         });
+
+        // Fila espaciadora al final de la tabla de resultados
+        const trSpacerRes = document.createElement("tr");
+        trSpacerRes.className = "table-scroll-spacer-row";
+        trSpacerRes.style.height = "60px";
+        const tdSpacerRes = document.createElement("td");
+        tdSpacerRes.colSpan = 100;
+        tdSpacerRes.style.border = "none";
+        tdSpacerRes.style.background = "transparent";
+        tdSpacerRes.style.pointerEvents = "none";
+        trSpacerRes.appendChild(tdSpacerRes);
+        if (tbody) tbody.appendChild(trSpacerRes);
       }
 
       // --- GESTIÓN DE MODALES Y FORMULARIOS ---
@@ -7928,6 +8291,7 @@ import USER_DATASET from './userDataset.json';
         const fInput = document.getElementById("actFecha");
         const fechaCreacion = (fInput && fInput.value) ? fInput.value : new Date().toISOString().split("T")[0];
 
+        let actObj = null;
         if (id) {
           const act = evalData.actividades.find(a => a.id === id);
           if (act) {
@@ -7938,6 +8302,7 @@ import USER_DATASET from './userDataset.json';
             act.rubricaId = rubricaId;
             act.criterios = criterios;
             act.fechaCreacion = fechaCreacion;
+            actObj = act;
           }
         } else {
           const newAct = {
@@ -7951,6 +8316,13 @@ import USER_DATASET from './userDataset.json';
             fechaCreacion
           };
           evalData.actividades.push(newAct);
+          actObj = newAct;
+        }
+
+        if (window.supabaseSync && this.grupoActivo && actObj) {
+          window.supabaseSync.saveActivity(this.grupoActivo.id, this.evaluacionActiva, actObj).catch((err) => {
+            console.warn('[Supabase saveActivity Notice]:', err);
+          });
         }
 
         this.guardarDatos();
@@ -8570,6 +8942,10 @@ import USER_DATASET from './userDataset.json';
               delete evalObj.calificaciones[actId];
             }
 
+            if (window.supabaseSync) {
+              window.supabaseSync.deleteActivity(actId).catch(err => console.warn('[Supabase deleteActivity Notice]:', err));
+            }
+
             if (this.diarioSeleccionadas) {
               this.diarioSeleccionadas.delete(`${evKey}___${actId}`);
             }
@@ -8660,6 +9036,9 @@ import USER_DATASET from './userDataset.json';
             evalData.actividades = evalData.actividades.filter(a => a.id !== actividadId);
             if (evalData.calificaciones && evalData.calificaciones[actividadId]) {
               delete evalData.calificaciones[actividadId];
+            }
+            if (window.supabaseSync) {
+              window.supabaseSync.deleteActivity(actividadId).catch(err => console.warn('[Supabase deleteActivity Notice]:', err));
             }
             this.guardarDatos();
             this.renderizarCuaderno();
@@ -8778,8 +9157,43 @@ import USER_DATASET from './userDataset.json';
         this.abrirModal("modalSeccion");
       }
 
+      ordenarSeccionesCreciente(seccionesList = null) {
+        const secs = seccionesList || (this.grupoActivo ? this.grupoActivo.secciones : null);
+        if (!secs || !Array.isArray(secs)) return [];
+
+        const parseCode = (str) => {
+          if (!str) return [999, 999, 999];
+          const match = String(str).match(/(\d+)\.(\d+)(?:\.(\d+))?/);
+          if (match) {
+            return [
+              parseInt(match[1], 10),
+              parseInt(match[2], 10),
+              parseInt(match[3] || "0", 10)
+            ];
+          }
+          const matchSingle = String(str).match(/\d+/);
+          if (matchSingle) {
+            return [parseInt(matchSingle[0], 10), 0, 0];
+          }
+          return [999, 999, 999];
+        };
+
+        secs.sort((a, b) => {
+          let strA = (a.criterios && a.criterios.length > 0) ? a.criterios[0] : (a.nombre || a.id || "");
+          let strB = (b.criterios && b.criterios.length > 0) ? b.criterios[0] : (b.nombre || b.id || "");
+          const ka = parseCode(strA);
+          const kb = parseCode(strB);
+          if (ka[0] !== kb[0]) return ka[0] - kb[0];
+          if (ka[1] !== kb[1]) return ka[1] - kb[1];
+          return ka[2] - kb[2];
+        });
+
+        return secs;
+      }
+
       recalcularPonderacionesSecciones() {
         if (!this.grupoActivo || !this.grupoActivo.secciones) return;
+        this.ordenarSeccionesCreciente(this.grupoActivo.secciones);
         const critMap = {};
         (this.grupoActivo.criterios || []).forEach(c => {
           critMap[c.codigo] = Number(c.ponderacion || 0);
@@ -8808,12 +9222,14 @@ import USER_DATASET from './userDataset.json';
 
         if (!this.grupoActivo.secciones) this.grupoActivo.secciones = [];
 
+        let targetSec = null;
         if (secId) {
           const sec = this.grupoActivo.secciones.find(s => s.id === secId);
           if (sec) {
             sec.nombre = nombre;
             sec.color = color;
             sec.criterios = criteriosSel;
+            targetSec = sec;
           }
         } else {
           const nuevaSec = {
@@ -8824,10 +9240,17 @@ import USER_DATASET from './userDataset.json';
             criterios: criteriosSel
           };
           this.grupoActivo.secciones.push(nuevaSec);
+          targetSec = nuevaSec;
         }
 
         // Recalcular automáticamente el peso de la sección a partir de los criterios seleccionados
         this.recalcularPonderacionesSecciones();
+
+        if (window.supabaseSync && this.grupoActivo && targetSec) {
+          window.supabaseSync.saveSection(this.grupoActivo.id, targetSec).catch((err) => {
+            console.warn('[Supabase saveSection Notice]:', err);
+          });
+        }
 
         this.guardarDatos();
         this.cerrarModal("modalSeccion");
@@ -8865,6 +9288,7 @@ import USER_DATASET from './userDataset.json';
         } else if (sub === "copias") {
           if (navBtns[5]) navBtns[5].classList.add("active");
           document.getElementById("cfgCopias").classList.add("active");
+          this.renderizarBackupsSemanalesAuto();
         } else if (sub === "nube") {
           if (navBtns[6]) navBtns[6].classList.add("active");
           document.getElementById("cfgNube").classList.add("active");
@@ -10087,7 +10511,9 @@ import USER_DATASET from './userDataset.json';
             this.grupoActivo = nuevoGrupo;
 
             if (window.supabaseSync) {
-              window.supabaseSync.saveGroup(nuevoGrupo);
+              window.supabaseSync.saveGroup(nuevoGrupo).catch((err) => {
+                console.warn('[Supabase saveGroup Notice]:', err);
+              });
             }
 
             this.guardarDatos(true);
@@ -10106,7 +10532,9 @@ import USER_DATASET from './userDataset.json';
           () => {
             targetGrupo.oculto = !targetGrupo.oculto;
             if (window.supabaseSync) {
-              window.supabaseSync.saveGroup(targetGrupo);
+              window.supabaseSync.saveGroup(targetGrupo).catch((err) => {
+                console.warn('[Supabase saveGroup Notice]:', err);
+              });
             }
             this.guardarDatos(true);
             this.actualizarUI();
@@ -10150,7 +10578,9 @@ import USER_DATASET from './userDataset.json';
             }
 
             if (window.supabaseSync) {
-              window.supabaseSync.deleteGroup(gId);
+              window.supabaseSync.deleteGroup(gId).catch((err) => {
+                console.warn('[Supabase deleteGroup Notice]:', err);
+              });
             }
 
             this.guardarDatos(true);
@@ -10169,6 +10599,11 @@ import USER_DATASET from './userDataset.json';
           g.nombre,
           (nuevo) => {
             g.nombre = nuevo.trim();
+            if (window.supabaseSync) {
+              window.supabaseSync.saveGroup(g).catch((err) => {
+                console.warn('[Supabase saveGroup Notice]:', err);
+              });
+            }
             this.guardarDatos();
             this.actualizarUI();
             this.mostrarToast(`✏️ Grupo renombrado a "${g.nombre}".`);
@@ -10194,6 +10629,7 @@ import USER_DATASET from './userDataset.json';
 
         if (alumnos.length === 0) {
           if (cont) cont.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--text-muted);">No hay alumnos en este grupo. Añade uno o importa una lista.</div>`;
+          this.actualizarContadorAlumnosSeleccionados();
           return;
         }
 
@@ -10238,9 +10674,12 @@ import USER_DATASET from './userDataset.json';
 
           card.innerHTML = `
             <div style="display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 12px; flex-wrap: wrap;">
-              <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                <span class="drag-handle" title="Arrastra para reordenar este alumno" style="cursor: grab;">⠿</span>
-                <strong style="font-size: 0.94rem; color: #0f172a;">${idx + 1}. ${this.escapeHtml(alu.nombre)}</strong>
+              <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin: 0; user-select: none;">
+                  <input type="checkbox" class="chk-alumno" value="${alu.id}" onchange="app.actualizarContadorAlumnosSeleccionados()" style="width: 17px; height: 17px; cursor: pointer; accent-color: #2563eb;" title="Seleccionar para acciones múltiples" />
+                  <span class="drag-handle" title="Arrastra para reordenar este alumno" style="cursor: grab;" onclick="event.preventDefault()">⠿</span>
+                  <strong style="font-size: 0.94rem; color: #0f172a;">${idx + 1}. ${this.escapeHtml(alu.nombre)}</strong>
+                </label>
                 <div style="display: flex; gap: 4px; align-items: center; flex-wrap: wrap;">
                   <button class="btn btn-sm btn-secondary" style="padding: 2px 6px; font-size: 0.75rem;" onclick="app.moverAlumno('${alu.id}', -1)" title="Subir posición">⬆️</button>
                   <button class="btn btn-sm btn-secondary" style="padding: 2px 6px; font-size: 0.75rem;" onclick="app.moverAlumno('${alu.id}', 1)" title="Bajar posición">⬇️</button>
@@ -10252,6 +10691,8 @@ import USER_DATASET from './userDataset.json';
           `;
           cont.appendChild(card);
         });
+
+        this.actualizarContadorAlumnosSeleccionados();
       }
 
       reordenarAlumnos(draggedId, targetId) {
@@ -10265,6 +10706,9 @@ import USER_DATASET from './userDataset.json';
 
         alumnos.forEach((alu, index) => {
           alu.orden = index + 1;
+          if (window.supabaseSync && this.grupoActivo) {
+            window.supabaseSync.saveStudent(this.grupoActivo.id, alu).catch(e => console.warn(e));
+          }
         });
 
         this.grupoActivo.alumnos = alumnos;
@@ -10329,7 +10773,9 @@ import USER_DATASET from './userDataset.json';
         }
 
         if (window.supabaseSync && this.grupoActivo && savedStudent) {
-          window.supabaseSync.saveStudent(this.grupoActivo.id, savedStudent);
+          window.supabaseSync.saveStudent(this.grupoActivo.id, savedStudent).catch((err) => {
+            console.warn('[Supabase saveStudent Notice]:', err);
+          });
         }
 
         this.guardarDatos(true);
@@ -10349,6 +10795,11 @@ import USER_DATASET from './userDataset.json';
         alus[idx].orden = alus[targetIdx].orden;
         alus[targetIdx].orden = temp;
 
+        if (window.supabaseSync && this.grupoActivo) {
+          window.supabaseSync.saveStudent(this.grupoActivo.id, alus[idx]).catch(e => console.warn(e));
+          window.supabaseSync.saveStudent(this.grupoActivo.id, alus[targetIdx]).catch(e => console.warn(e));
+        }
+
         this.guardarDatos();
         this.renderizarListaAlumnos();
         this.actualizarUI();
@@ -10359,7 +10810,12 @@ import USER_DATASET from './userDataset.json';
           "¿Deseas ordenar alfabéticamente (A-Z) a todos los alumnos?",
           () => {
             this.grupoActivo.alumnos.sort((a,b) => a.nombre.localeCompare(b.nombre, "es"));
-            this.grupoActivo.alumnos.forEach((a, i) => a.orden = i + 1);
+            this.grupoActivo.alumnos.forEach((a, i) => {
+              a.orden = i + 1;
+              if (window.supabaseSync && this.grupoActivo) {
+                window.supabaseSync.saveStudent(this.grupoActivo.id, a).catch(e => console.warn(e));
+              }
+            });
             this.guardarDatos();
             this.renderizarListaAlumnos();
             this.actualizarUI();
@@ -10404,13 +10860,231 @@ import USER_DATASET from './userDataset.json';
               this.evaluandoRubricaActual.alumnosSeleccionados.delete(alumnoId);
             }
             if (window.supabaseSync) {
-              window.supabaseSync.deleteStudent(alumnoId);
+              window.supabaseSync.deleteStudent(alumnoId).catch((err) => {
+                console.warn('[Supabase deleteStudent Notice]:', err);
+              });
             }
             this.guardarDatos(true);
             this.renderizarListaAlumnos();
             this.actualizarUI();
           }
         );
+      }
+
+      actualizarContadorAlumnosSeleccionados() {
+        const chks = document.querySelectorAll(".chk-alumno:checked");
+        const count = chks.length;
+        const total = document.querySelectorAll(".chk-alumno").length;
+        const btnEliminar = document.getElementById("btnEliminarAlumnosSeleccionados");
+        const btnMover = document.getElementById("btnMoverAlumnosSeleccionados");
+        const btnDeseleccionar = document.getElementById("btnDeseleccionarAlumnos");
+        const countSpan = document.getElementById("countAlumnosSel");
+        const countMoverSpan = document.getElementById("countAlumnosMover");
+        const btnToggle = document.getElementById("btnToggleSelAlumnos");
+
+        if (countSpan) countSpan.textContent = count;
+        if (countMoverSpan) countMoverSpan.textContent = count;
+        if (btnEliminar) btnEliminar.style.display = count > 0 ? "inline-flex" : "none";
+        if (btnMover) btnMover.style.display = count > 0 ? "inline-flex" : "none";
+        if (btnDeseleccionar) btnDeseleccionar.style.display = count > 0 ? "inline-flex" : "none";
+        if (btnToggle) {
+          btnToggle.textContent = (total > 0 && count === total) ? "☐ Deseleccionar Todos" : "☑️ Selección Múltiple";
+        }
+
+        // Resaltar visualmente las filas de alumnos seleccionados
+        document.querySelectorAll(".student-drag-item").forEach(card => {
+          const cb = card.querySelector(".chk-alumno");
+          if (cb && cb.checked) {
+            card.style.background = "#eff6ff";
+            card.style.borderColor = "#93c5fd";
+            card.style.boxShadow = "0 1px 4px rgba(37, 99, 235, 0.12)";
+          } else {
+            card.style.background = "";
+            card.style.borderColor = "";
+            card.style.boxShadow = "";
+          }
+        });
+      }
+
+      alternarSeleccionTodosAlumnos() {
+        const chks = document.querySelectorAll(".chk-alumno");
+        if (chks.length === 0) {
+          this.mostrarToast("ℹ️ No hay alumnos en este grupo para seleccionar.");
+          return;
+        }
+        const chksChecked = document.querySelectorAll(".chk-alumno:checked");
+        const marcar = chksChecked.length < chks.length;
+        chks.forEach(c => c.checked = marcar);
+        this.actualizarContadorAlumnosSeleccionados();
+      }
+
+      deseleccionarTodosAlumnos() {
+        const chks = document.querySelectorAll(".chk-alumno");
+        chks.forEach(c => c.checked = false);
+        this.actualizarContadorAlumnosSeleccionados();
+      }
+
+      solicitarEliminarAlumnosSeleccionados() {
+        const chks = Array.from(document.querySelectorAll(".chk-alumno:checked"));
+        const ids = chks.map(c => c.value);
+        if (ids.length === 0) return;
+
+        const count = ids.length;
+        const nombreGrupo = this.grupoActivo ? this.escapeHtml(this.grupoActivo.nombre) : "";
+
+        this.mostrarConfirmacion(
+          `¿Eliminar a los <strong>${count} alumno(s) seleccionado(s)</strong> del grupo <strong>"${nombreGrupo}"</strong>?<br><br><span style="font-size:0.85rem; color:#dc2626;">Se borrarán de forma definitiva sus calificaciones e incidencias registradas en este grupo.</span>`,
+          () => {
+            const idsSet = new Set(ids);
+            this.grupoActivo.alumnos = (this.grupoActivo.alumnos || []).filter(a => !idsSet.has(a.id));
+            this.grupoActivo.alumnos.forEach((a, i) => a.orden = i + 1);
+
+            // Limpiar calificaciones en todas las evaluaciones
+            if (this.grupoActivo.evaluaciones) {
+              ["eval1", "eval2", "eval3", "final"].forEach(evKey => {
+                const evObj = this.grupoActivo.evaluaciones[evKey];
+                if (evObj && evObj.calificaciones) {
+                  for (const actId in evObj.calificaciones) {
+                    ids.forEach(id => delete evObj.calificaciones[actId][id]);
+                  }
+                }
+                if (evObj && evObj.calificacionesRubricas) {
+                  for (const rubId in evObj.calificacionesRubricas) {
+                    ids.forEach(id => delete evObj.calificacionesRubricas[rubId][id]);
+                  }
+                }
+              });
+            }
+
+            if (this.grupoActivo.incidencias && Array.isArray(this.grupoActivo.incidencias)) {
+              this.grupoActivo.incidencias = this.grupoActivo.incidencias.filter(inc => !idsSet.has(inc.alumnoId));
+            }
+
+            if (this.alumnoCuadernoSeleccionadoId && idsSet.has(this.alumnoCuadernoSeleccionadoId)) {
+              this.alumnoCuadernoSeleccionadoId = null;
+            }
+            if (this.diarioAlumnosSelIds && Array.isArray(this.diarioAlumnosSelIds)) {
+              this.diarioAlumnosSelIds = this.diarioAlumnosSelIds.filter(id => !idsSet.has(id));
+            }
+            if (this.evaluandoRubricaActual && this.evaluandoRubricaActual.alumnosSeleccionados) {
+              ids.forEach(id => this.evaluandoRubricaActual.alumnosSeleccionados.delete(id));
+            }
+
+            if (window.supabaseSync) {
+              ids.forEach(id => {
+                window.supabaseSync.deleteStudent(id).catch(err => {
+                  console.warn('[Supabase deleteStudent Notice]:', err);
+                });
+              });
+            }
+
+            this.guardarDatos(true);
+            this.renderizarListaAlumnos();
+            this.actualizarUI();
+            this.mostrarToast(`🗑️ ${count} alumno(s) eliminado(s) correctamente.`);
+          }
+        );
+      }
+
+      modalMoverAlumnosSeleccionados() {
+        const chks = Array.from(document.querySelectorAll(".chk-alumno:checked"));
+        const ids = chks.map(c => c.value);
+        if (ids.length === 0) return;
+
+        const otrosGrupos = (this.data.grupos || []).filter(g => g.id !== (this.grupoActivo ? this.grupoActivo.id : ""));
+        if (otrosGrupos.length === 0) {
+          this.mostrarToast("⚠️ No hay otros cursos disponibles para transferir alumnos. Crea otro curso primero en la pestaña 'Cursos'.");
+          return;
+        }
+
+        this.abrirModalMoverAlumnos(ids);
+      }
+
+      abrirModalMoverAlumnos(ids) {
+        this.alumnosSeleccionadosParaTransferir = ids;
+        const countSpan = document.getElementById("modalMoverAlumnosCount");
+        const origenSpan = document.getElementById("modalMoverAlumnosGrupoOrigen");
+        const selDestino = document.getElementById("selectGrupoDestinoMoverAlumnos");
+
+        if (countSpan) countSpan.textContent = ids.length;
+        if (origenSpan) origenSpan.textContent = this.grupoActivo ? `"${this.grupoActivo.nombre}"` : "";
+
+        if (selDestino) {
+          selDestino.innerHTML = "";
+          const otrosGrupos = (this.data.grupos || []).filter(g => g.id !== (this.grupoActivo ? this.grupoActivo.id : ""));
+          otrosGrupos.forEach(g => {
+            const opt = document.createElement("option");
+            opt.value = g.id;
+            opt.textContent = `${g.nombre} (${g.alumnos ? g.alumnos.length : 0} alumnos)`;
+            selDestino.appendChild(opt);
+          });
+        }
+
+        this.abrirModal("modalMoverAlumnos");
+      }
+
+      ejecutarTransferenciaAlumnos(accion) {
+        const ids = this.alumnosSeleccionadosParaTransferir || [];
+        if (ids.length === 0) {
+          this.cerrarModal("modalMoverAlumnos");
+          return;
+        }
+
+        const selDestino = document.getElementById("selectGrupoDestinoMoverAlumnos");
+        const destinoId = selDestino ? selDestino.value : null;
+        const grupoDestino = (this.data.grupos || []).find(g => g.id === destinoId);
+        if (!grupoDestino) {
+          this.mostrarToast("⚠️ Debes seleccionar un grupo de destino válido.");
+          return;
+        }
+
+        if (!grupoDestino.alumnos) grupoDestino.alumnos = [];
+        const nombresDestino = new Set(grupoDestino.alumnos.map(a => a.nombre.toLowerCase().trim()));
+        let maxOrden = grupoDestino.alumnos.reduce((m, a) => Math.max(m, a.orden || 0), 0);
+
+        const alumnosOrigen = (this.grupoActivo.alumnos || []).filter(a => ids.includes(a.id));
+        let agregados = 0;
+
+        alumnosOrigen.forEach((alu, index) => {
+          if (!nombresDestino.has(alu.nombre.toLowerCase().trim())) {
+            maxOrden++;
+            const newUuid = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + "-" + index + "-" + Math.random().toString(36).substring(2, 9));
+            grupoDestino.alumnos.push({
+              id: "alu-" + newUuid,
+              nombre: alu.nombre,
+              orden: maxOrden
+            });
+            agregados++;
+          }
+        });
+
+        if (accion === 'mover') {
+          const idsSet = new Set(ids);
+          this.grupoActivo.alumnos = (this.grupoActivo.alumnos || []).filter(a => !idsSet.has(a.id));
+          this.grupoActivo.alumnos.forEach((a, i) => a.orden = i + 1);
+
+          if (this.grupoActivo.evaluaciones) {
+            ["eval1", "eval2", "eval3", "final"].forEach(evKey => {
+              const evObj = this.grupoActivo.evaluaciones[evKey];
+              if (evObj && evObj.calificaciones) {
+                for (const actId in evObj.calificaciones) {
+                  ids.forEach(id => delete evObj.calificaciones[actId][id]);
+                }
+              }
+              if (evObj && evObj.calificacionesRubricas) {
+                for (const rubId in evObj.calificacionesRubricas) {
+                  ids.forEach(id => delete evObj.calificacionesRubricas[rubId][id]);
+                }
+              }
+            });
+          }
+        }
+
+        this.guardarDatos(true);
+        this.cerrarModal("modalMoverAlumnos");
+        this.renderizarListaAlumnos();
+        this.actualizarUI();
+        this.mostrarToast(`✅ ${agregados} alumno(s) ${accion === 'mover' ? 'movidos' : 'copiados'} a "${grupoDestino.nombre}".`);
       }
 
       modalImportarAlumnos() {
@@ -10427,13 +11101,15 @@ import USER_DATASET from './userDataset.json';
 
         if (!this.grupoActivo.alumnos) this.grupoActivo.alumnos = [];
 
-        const existentes = new Set(this.grupoActivo.alumnos.map(a => a.nombre.toLowerCase()));
+        const normStr = (s) => (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+        const existentes = new Set(this.grupoActivo.alumnos.map(a => normStr(a.nombre)));
         let agregados = 0;
         let maxOrden = this.grupoActivo.alumnos.reduce((m, a) => Math.max(m, a.orden || 0), 0);
 
         lineas.forEach((linea, index) => {
-          if (!existentes.has(linea.toLowerCase())) {
-            existentes.add(linea.toLowerCase());
+          const key = normStr(linea);
+          if (key && !existentes.has(key)) {
+            existentes.add(key);
             maxOrden++;
             const newUuid = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + "-" + index + "-" + Math.random().toString(36).substring(2, 9));
             this.grupoActivo.alumnos.push({
@@ -10530,6 +11206,10 @@ import USER_DATASET from './userDataset.json';
         if (crit) {
           crit.ponderacion = Number(nuevoPeso) || 0;
           this.recalcularPonderacionesSecciones();
+          if (window.supabaseSync && this.grupoActivo) {
+            window.supabaseSync.saveCriterion(this.grupoActivo.id, crit).catch(e => console.warn(e));
+            window.supabaseSync.saveMetadata(this.getProfesorId(), this.data).catch(e => console.warn(e));
+          }
           this.guardarDatos();
 
           const criterios = this.grupoActivo.criterios || [];
@@ -10597,6 +11277,12 @@ import USER_DATASET from './userDataset.json';
             });
 
             this.recalcularPonderacionesSecciones();
+            if (window.supabaseSync && this.grupoActivo) {
+              codigos.forEach(cod => {
+                window.supabaseSync.deleteCriterion(this.grupoActivo.id, cod).catch(e => console.warn(e));
+              });
+              window.supabaseSync.saveMetadata(this.getProfesorId(), this.data).catch(e => console.warn(e));
+            }
             this.guardarDatos();
             this.renderizarListaCriterios();
           }
@@ -10655,6 +11341,10 @@ import USER_DATASET from './userDataset.json';
 
         this.ordenarCriterios(this.grupoActivo.criterios);
         this.recalcularPonderacionesSecciones();
+        if (window.supabaseSync && this.grupoActivo) {
+          window.supabaseSync.saveCriterion(this.grupoActivo.id, { codigo, descripcion, ponderacion }).catch(e => console.warn(e));
+          window.supabaseSync.saveMetadata(this.getProfesorId(), this.data).catch(e => console.warn(e));
+        }
         this.guardarDatos();
         this.cerrarModal("modalCriterio");
         this.renderizarListaCriterios();
@@ -10680,6 +11370,10 @@ import USER_DATASET from './userDataset.json';
             });
 
             this.recalcularPonderacionesSecciones();
+            if (window.supabaseSync && this.grupoActivo) {
+              window.supabaseSync.deleteCriterion(this.grupoActivo.id, codigo).catch(e => console.warn(e));
+              window.supabaseSync.saveMetadata(this.getProfesorId(), this.data).catch(e => console.warn(e));
+            }
             this.guardarDatos();
             this.renderizarListaCriterios();
           }
@@ -10720,16 +11414,197 @@ import USER_DATASET from './userDataset.json';
             } else {
               this.grupoActivo.criterios.push({ codigo, descripcion, ponderacion: pond });
             }
+            if (window.supabaseSync && this.grupoActivo) {
+              window.supabaseSync.saveCriterion(this.grupoActivo.id, { codigo, descripcion, ponderacion: pond }).catch(e => console.warn(e));
+            }
             importados++;
           }
         });
 
         this.ordenarCriterios(this.grupoActivo.criterios);
         this.recalcularPonderacionesSecciones();
+        if (window.supabaseSync && this.grupoActivo) {
+          window.supabaseSync.saveMetadata(this.getProfesorId(), this.data).catch(e => console.warn(e));
+        }
         this.guardarDatos();
         this.cerrarModal("modalImportCriterios");
         alert(`Se importaron/actualizaron ${importados} criterios.`);
         this.renderizarListaCriterios();
+      }
+
+      importarPonderacionesCriteriosExcel(event) {
+        const file = event.target.files ? event.target.files[0] : null;
+        if (!file) return;
+
+        if (!this.grupoActivo) {
+          alert("Por favor, selecciona primero un grupo activo.");
+          event.target.value = "";
+          return;
+        }
+
+        if (!this.grupoActivo.criterios || this.grupoActivo.criterios.length === 0) {
+          alert("El grupo activo no tiene criterios creados aún. Crea o importa primero la lista de criterios.");
+          event.target.value = "";
+          return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const XLSX = window.XLSX;
+            if (!XLSX) {
+              alert("La librería de procesamiento de Excel se está cargando. Reinténtalo en un momento.");
+              event.target.value = "";
+              return;
+            }
+
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: "array" });
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+            if (!rawRows || rawRows.length === 0) {
+              alert("El archivo Excel está vacío.");
+              event.target.value = "";
+              return;
+            }
+
+            const existingCriterios = this.grupoActivo.criterios;
+            const normalizeCode = (str) => {
+              if (str === null || str === undefined) return "";
+              let s = String(str).trim();
+              const match = s.match(/(\d+(\.\d+)*)/);
+              if (match) return match[1];
+              return s.replace(/\.$/, "").toLowerCase();
+            };
+
+            const criteriaMap = new Map();
+            existingCriterios.forEach(crit => {
+              const norm = normalizeCode(crit.codigo);
+              if (norm) criteriaMap.set(norm, crit);
+              criteriaMap.set(String(crit.codigo).trim().toLowerCase(), crit);
+            });
+
+            let actualizados = 0;
+            const detallesActualizados = [];
+
+            let codeColIdx = -1;
+            let weightColIdx = -1;
+
+            for (let r = 0; r < Math.min(5, rawRows.length); r++) {
+              const row = rawRows[r] || [];
+              for (let c = 0; c < row.length; c++) {
+                const val = String(row[c] || "").toLowerCase();
+                if (val.includes("crit") || val.includes("código") || val.includes("codigo") || val.includes("num") || val.includes("id")) {
+                  codeColIdx = c;
+                }
+                if (val.includes("pond") || val.includes("peso") || val.includes("%") || val.includes("porcent") || val.includes("weight")) {
+                  weightColIdx = c;
+                }
+              }
+              if (codeColIdx >= 0 && weightColIdx >= 0) break;
+            }
+
+            rawRows.forEach((row) => {
+              if (!Array.isArray(row) || row.length < 2) return;
+
+              let codeCandidate = "";
+              let weightCandidate = null;
+
+              if (codeColIdx >= 0 && weightColIdx >= 0 && codeColIdx !== weightColIdx && row[codeColIdx] !== undefined) {
+                codeCandidate = row[codeColIdx];
+                weightCandidate = row[weightColIdx];
+              } else {
+                row.forEach((cell) => {
+                  if (cell === null || cell === undefined || cell === "") return;
+                  const cellStr = String(cell).trim();
+
+                  let parsedWeight = null;
+                  if (typeof cell === "number") {
+                    parsedWeight = cell;
+                  } else if (typeof cell === "string") {
+                    if (cell.endsWith("%")) {
+                      parsedWeight = parseFloat(cell.replace("%", "").replace(",", "."));
+                    } else if (!isNaN(parseFloat(cell.replace(",", "."))) && /^[\d\.,\s%]+$/.test(cell.trim())) {
+                      parsedWeight = parseFloat(cell.replace(",", "."));
+                    }
+                  }
+
+                  if (parsedWeight !== null && !isNaN(parsedWeight)) {
+                    if (parsedWeight > 0 && parsedWeight <= 1 && !cellStr.includes("100")) {
+                      parsedWeight = Math.round(parsedWeight * 100 * 100) / 100;
+                    }
+                  }
+
+                  const normCode = normalizeCode(cellStr);
+                  if (criteriaMap.has(normCode)) {
+                    codeCandidate = cellStr;
+                  } else if (parsedWeight !== null && !isNaN(parsedWeight) && weightCandidate === null) {
+                    weightCandidate = parsedWeight;
+                  }
+                });
+              }
+
+              if (!codeCandidate) {
+                for (let c = 0; c < row.length; c++) {
+                  const norm = normalizeCode(row[c]);
+                  if (criteriaMap.has(norm)) {
+                    codeCandidate = row[c];
+                    if (c + 1 < row.length && weightCandidate === null) {
+                      weightCandidate = row[c + 1];
+                    }
+                    break;
+                  }
+                }
+              }
+
+              if (codeCandidate && weightCandidate !== null && weightCandidate !== undefined) {
+                const normKey = normalizeCode(codeCandidate);
+                const targetCrit = criteriaMap.get(normKey) || criteriaMap.get(String(codeCandidate).trim().toLowerCase());
+
+                if (targetCrit) {
+                  let numPond = 0;
+                  if (typeof weightCandidate === "number") {
+                    numPond = weightCandidate;
+                  } else if (typeof weightCandidate === "string") {
+                    numPond = parseFloat(String(weightCandidate).replace("%", "").replace(",", ".")) || 0;
+                  }
+
+                  if (numPond > 0 && numPond <= 1 && !String(weightCandidate).includes("100")) {
+                    numPond = Math.round(numPond * 100 * 100) / 100;
+                  }
+
+                  // REGLA DE ORO: NO cambiar la descripción del criterio; únicamente rellenar/actualizar su ponderación
+                  targetCrit.ponderacion = numPond;
+                  actualizados++;
+                  detallesActualizados.push(`${targetCrit.codigo} ➔ ${numPond}%`);
+                }
+              }
+            });
+
+            if (actualizados === 0) {
+              alert("No se pudieron emparejar ponderaciones del Excel con los criterios existentes del grupo.\n\nAsegúrate de que los números/códigos de los criterios en la hoja (ej. 1.1, 1.2) coincidan con los de Fernanditio.");
+              event.target.value = "";
+              return;
+            }
+
+            this.recalcularPonderacionesSecciones();
+            this.guardarDatos();
+            this.renderizarListaCriterios();
+            this.actualizarUI();
+
+            this.mostrarToast(`✅ Ponderaciones actualizadas para ${actualizados} criterios desde Excel. Se mantuvieron intactas las descripciones.`);
+            alert(`✅ ¡Ponderaciones asignadas con éxito desde Excel!\n\nSe han actualizado los pesos de ${actualizados} criterios:\n${detallesActualizados.slice(0, 12).join("\n")}${detallesActualizados.length > 12 ? '\n...' : ''}\n\nLas descripciones y nombres de los criterios no se han modificado.`);
+          } catch (err) {
+            console.error("Error al procesar archivo de ponderaciones Excel:", err);
+            alert("Error al leer el archivo Excel: " + (err.message || String(err)));
+          } finally {
+            event.target.value = "";
+          }
+        };
+
+        reader.readAsArrayBuffer(file);
       }
 
       // 4. Secciones
@@ -10860,6 +11735,9 @@ import USER_DATASET from './userDataset.json';
           `¿Eliminar las <strong>${ids.length}</strong> secciones seleccionadas?`,
           () => {
             this.grupoActivo.secciones = this.grupoActivo.secciones.filter(s => !ids.includes(s.id));
+            if (window.supabaseSync) {
+              ids.forEach(sId => window.supabaseSync.deleteSection(sId).catch(err => console.warn('[Supabase deleteSection Notice]:', err)));
+            }
             this.recalcularPonderacionesSecciones();
             this.guardarDatos();
             this.renderizarListaSecciones();
@@ -10875,6 +11753,9 @@ import USER_DATASET from './userDataset.json';
           `¿Eliminar la sección <strong>"${this.escapeHtml(sec.nombre)}"</strong>?`,
           () => {
             this.grupoActivo.secciones = this.grupoActivo.secciones.filter(s => s.id !== secId);
+            if (window.supabaseSync) {
+              window.supabaseSync.deleteSection(secId).catch(err => console.warn('[Supabase deleteSection Notice]:', err));
+            }
             this.recalcularPonderacionesSecciones();
             this.guardarDatos();
             this.renderizarListaSecciones();
@@ -10919,11 +11800,12 @@ import USER_DATASET from './userDataset.json';
       // 5. Rúbricas
       renderizarListaRubricas() {
         const cont = document.getElementById("listaRubricas");
+        if (!cont) return;
         cont.innerHTML = "";
-        const rubricas = this.grupoActivo.rubricas || [];
+        const rubricas = this.obtenerRubricasConVinculadas();
 
         if (rubricas.length === 0) {
-          cont.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--text-muted);">No hay rúbricas creadas.</div>`;
+          cont.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--text-muted);">No hay rúbricas creadas en este grupo ni en grupos vinculados.</div>`;
           this.actualizarContadorRubricasSeleccionadas();
           return;
         }
@@ -10935,6 +11817,10 @@ import USER_DATASET from './userDataset.json';
           const fechaFmt = fechaStr ? this.formatearFecha(fechaStr.split("T")[0]) : "Sin fecha";
           const numAspectos = rub.aspectos ? rub.aspectos.length : (rub.items ? rub.items.length : 0);
 
+          const origenBadge = rub.esVinculada 
+            ? `<span style="background: #e0e7ff; color: #3730a3; border: 1px solid #c7d2fe; padding: 2px 7px; border-radius: 4px; font-weight: 600; font-size: 0.73rem;">🔗 Grupo: ${this.escapeHtml(rub.grupoOrigenNombre)}</span>` 
+            : '';
+
           card.innerHTML = `
             <div style="display: flex; align-items: center; gap: 10px;">
               <input type="checkbox" class="chk-rubrica" value="${rub.id}" onchange="app.actualizarContadorRubricasSeleccionadas()" style="width: 16px; height: 16px; cursor: pointer;" />
@@ -10942,6 +11828,7 @@ import USER_DATASET from './userDataset.json';
                 <strong style="font-size: 0.95rem; color: var(--text);">${this.escapeHtml(rub.titulo)}</strong>
                 <div style="font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 8px; margin-top: 3px; flex-wrap: wrap;">
                   <span>${this.escapeHtml(rub.descripcion || "")} • ${numAspectos} aspectos de evaluación</span>
+                  ${origenBadge}
                   <span style="background: #f1f5f9; color: #334155; padding: 2px 7px; border-radius: 4px; font-weight: 600; font-size: 0.75rem; border: 1px solid #cbd5e1; display: inline-flex; align-items: center; gap: 4px;">
                     📅 Creada: ${fechaFmt}
                   </span>
@@ -11007,7 +11894,7 @@ import USER_DATASET from './userDataset.json';
           () => {
             if (!this.grupoActivo || !this.grupoActivo.rubricas) return;
             this.grupoActivo.rubricas = (this.grupoActivo.rubricas || []).filter(r => !ids.includes(r.id));
-            this.guardarDatos();
+            this.guardarDatos(true);
             this.renderizarRubricasView();
             if (document.getElementById("listaRubricas")) {
               this.renderizarListaRubricas();
@@ -11052,7 +11939,7 @@ import USER_DATASET from './userDataset.json';
       }
 
       abrirConfigurarRubrica(rubId) {
-        const rub = (this.grupoActivo.rubricas || []).find(r => r.id === rubId);
+        const rub = this.buscarRubricaPorId(rubId);
         if (!rub) return;
 
         document.getElementById("editRubricaId").value = rub.id;
@@ -11263,7 +12150,7 @@ import USER_DATASET from './userDataset.json';
         // Sincronizar o versionar plantilla compartida
         this.crearOActualizarPlantilla(rub, rub.origenGrupoId || this.grupoActivo.id, esCompartida);
 
-        this.guardarDatos();
+        this.guardarDatos(true);
         this.cerrarModal("modalEditRubrica");
         this.renderizarListaRubricas();
         this.renderizarRubricasView();
@@ -11275,7 +12162,7 @@ import USER_DATASET from './userDataset.json';
       }
 
       exportarRubrica(rubId) {
-        const rub = this.grupoActivo.rubricas.find(r => r.id === rubId);
+        const rub = this.buscarRubricaPorId(rubId);
         if (!rub) return;
         const str = JSON.stringify(rub, null, 2);
         const blob = new Blob([str], { type: "application/json" });
@@ -11291,14 +12178,24 @@ import USER_DATASET from './userDataset.json';
       }
 
       solicitarEliminarRubrica(rubId) {
-        const rub = this.grupoActivo.rubricas.find(r => r.id === rubId);
+        const rub = this.buscarRubricaPorId(rubId);
         if (!rub) return;
 
         this.mostrarConfirmacion(
           `¿Deseas eliminar la rúbrica <strong>"${this.escapeHtml(rub.titulo)}"</strong>?`,
           () => {
-            this.grupoActivo.rubricas = this.grupoActivo.rubricas.filter(r => r.id !== rubId);
-            this.guardarDatos();
+            if (this.grupoActivo && this.grupoActivo.rubricas) {
+              this.grupoActivo.rubricas = this.grupoActivo.rubricas.filter(r => r.id !== rubId);
+            }
+            (this.data.grupos || []).forEach(g => {
+              if (g.rubricas) {
+                g.rubricas = g.rubricas.filter(r => r.id !== rubId);
+              }
+            });
+            if (window.supabaseSync) {
+              window.supabaseSync.deleteRubric(rubId).catch(err => console.warn('[Supabase deleteRubric Notice]:', err));
+            }
+            this.guardarDatos(true);
             this.renderizarListaRubricas();
             this.renderizarRubricasView();
             this.actualizarUI();
@@ -11308,14 +12205,64 @@ import USER_DATASET from './userDataset.json';
       }
 
       // 6. Copias de seguridad e Importación / Exportación
-      descargarBackup() {
-        const str = JSON.stringify(this.data, null, 2);
+      abrirVentanaIndependiente() {
+        const appUrl = window.location.href;
+        try {
+          const newWin = window.open(appUrl, '_blank');
+          if (!newWin || newWin.closed || typeof newWin.closed === 'undefined') {
+            this.mostrarModalVentanaIndependienteUrl(appUrl);
+          } else {
+            this.mostrarToast("🚀 Fernanditio abierto en pestaña independiente.");
+          }
+        } catch (e) {
+          this.mostrarModalVentanaIndependienteUrl(appUrl);
+        }
+      }
+
+      mostrarModalVentanaIndependienteUrl(url) {
+        const link = document.getElementById("linkVentanaIndependiente");
+        if (link) {
+          link.href = url;
+        }
+        this.abrirModal("modalVentanaIndependiente");
+      }
+
+      async descargarBackup() {
+        this.mostrarToast("⏳ Preparando copia de seguridad consolidada...");
+        let exportData = this.data;
+        const syncInstance = window.supabaseSync || supabaseSync;
+        if (syncInstance) {
+          try {
+            const remoteData = await syncInstance.fetchNotebookFromSupabase(this.getProfesorId());
+            if (remoteData && Array.isArray(remoteData.grupos) && remoteData.grupos.length > 0) {
+              exportData = remoteData;
+              this.data = remoteData;
+            }
+          } catch (e) {
+            console.warn('[Backup download Supabase fetch notice]:', e);
+          }
+        }
+        const str = JSON.stringify(exportData, null, 2);
         const blob = new Blob([str], { type: "application/json" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `backup_cuaderno_evaluacion_${new Date().toISOString().slice(0,10)}.json`;
+        const hoy = new Date().toISOString().slice(0, 10);
+        a.download = `Fernanditio_Backup_Completo_${hoy}.json`;
+        document.body.appendChild(a);
         a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        let totalAlu = 0;
+        let totalRub = 0;
+        if (Array.isArray(exportData.grupos)) {
+          exportData.grupos.forEach(g => {
+            totalAlu += Array.isArray(g.alumnos) ? g.alumnos.length : 0;
+            totalRub += Array.isArray(g.rubricas) ? g.rubricas.length : 0;
+          });
+        }
+        this.mostrarToast(`💾 Copia descargada con éxito (${exportData.grupos ? exportData.grupos.length : 0} cursos, ${totalAlu} alumnos, ${totalRub} rúbricas).`);
       }
 
       cargarBackup(event) {
@@ -11343,8 +12290,9 @@ import USER_DATASET from './userDataset.json';
                 this.actualizarUI();
 
                 if (window.supabaseSync) {
+                  window.supabaseSync.markTeacherLoaded(this.getProfesorId());
                   this.mostrarToast("⏳ Guardando toda la información del JSON en Supabase...");
-                  const ok = await window.supabaseSync.syncNotebookToSupabase('docente_borborigmo_gmail_com', parsed);
+                  const ok = await window.supabaseSync.syncNotebookToSupabase(this.getProfesorId(), parsed);
                   if (ok) {
                     this.mostrarToast(`✅ ¡${parsed.grupos.length} grupo(s) del JSON guardados en Supabase correctamente!`);
                   } else {
@@ -11502,20 +12450,29 @@ import USER_DATASET from './userDataset.json';
       }
 
       // --- SINCRONIZACIÓN NUBE Y MÓVIL (SUPABASE POSTGRESQL) ---
-      async conectarSupabaseSync() {
-        if (window.supabaseSync) {
-          try {
-            const remoteData = await window.supabaseSync.fetchNotebookFromSupabase('docente_borborigmo_gmail_com');
-            console.log('[Supabase Sync] Datos remotos cargados correctamente de Supabase.');
-            this.data = remoteData || { grupos: [] };
-            const storageKey = this.getStorageKey();
-            if (storageKey) {
-              localStorage.setItem(storageKey, JSON.stringify(this.data));
-            }
+      async conectarSupabaseSync(isStartup = false) {
+        const syncInstance = window.supabaseSync || supabaseSync;
+        if (!syncInstance) return;
+        try {
+          const user = (window.firebaseSync && window.firebaseSync.status) ? window.firebaseSync.status.user : null;
+          const teacherId = await syncInstance.resolveTeacherId(user || undefined);
+          const remoteData = await syncInstance.loadNotebook(teacherId);
+          if (remoteData) {
+            console.log('[Supabase Sync] Datos cargados de Supabase:', remoteData.grupos.length, 'grupos.');
+            this.data = remoteData;
+            this.cargarDatos();
             this.actualizarUI();
-          } catch (e) {
-            console.warn('[Supabase Init Sync Warning]:', e);
+            if (isStartup && this.data.grupos.length > 0) {
+              let totalRub = 0;
+              this.data.grupos.forEach(g => {
+                totalRub += Array.isArray(g.rubricas) ? g.rubricas.length : 0;
+              });
+              this.mostrarToast(`☁️ Cuaderno cargado desde Supabase (${this.data.grupos.length} grupos, ${totalRub} rúbricas).`);
+            }
           }
+        } catch (e) {
+          console.warn('[Supabase Sync Error]:', e);
+          this.mostrarToast('⚠️ Error al cargar desde Supabase: ' + (e.message || String(e)));
         }
       }
 
@@ -11746,10 +12703,19 @@ import USER_DATASET from './userDataset.json';
             stateTextColor = "#475569";
           }
 
+          const dotColor = (dotEmoji === "🟢") ? "#16a34a" : ((dotEmoji === "🔴") ? "#dc2626" : "#f59e0b");
+
+          const userEmail = user ? (user.email || user.displayName || "borborigmo@gmail.com") : "Sin sesión activa";
+
           const btnIndicatorHtml = `
             <button id="btnCloudStatusIndicator" class="btn-cloud-compact" onclick="app.alternarPopoverNube(event)"
-              title="Estado de conexión: ${stateLabel}" aria-label="Estado de conexión: ${stateLabel}">
-              <span style="font-size: 0.95rem; line-height: 1;">${dotEmoji}</span>
+              title="${userEmail}" aria-label="${userEmail}">
+              <div style="position: relative; display: flex; align-items: center; justify-content: center;">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #334155;">
+                  <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"></path>
+                </svg>
+                <span style="position: absolute; bottom: -2px; right: -2px; width: 7px; height: 7px; border-radius: 50%; background: ${dotColor}; border: 1.5px solid #ffffff;"></span>
+              </div>
             </button>
           `;
 
@@ -11757,8 +12723,8 @@ import USER_DATASET from './userDataset.json';
           if (user) {
             btnLogoutHtml = `
               <button id="btnCloudHeaderLogout" class="btn-cloud-compact btn-logout" onclick="app.cerrarSesionNube()"
-                title="Cerrar sesión" aria-label="Cerrar sesión">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                title="cerrar sesión" aria-label="cerrar sesión">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
                   <polyline points="16 17 21 12 16 7"></polyline>
                   <line x1="21" y1="12" x2="9" y2="12"></line>
@@ -11767,69 +12733,10 @@ import USER_DATASET from './userDataset.json';
             `;
           }
 
-          const isPopoverOpen = !!this.popoverNubeAbierto;
-          const popoverDisplayStyle = isPopoverOpen ? "block" : "none";
-
-          const userEmail = user ? (user.email || user.displayName || "Usuario registrado") : null;
-          const grupoNombre = this.grupoActivo ? this.grupoActivo.nombre : null;
-
-          let lastSyncedText = "Sin sincronizar aún";
-          if (lastSyncedRaw) {
-            try {
-              const d = new Date(lastSyncedRaw);
-              lastSyncedText = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            } catch (e) {
-              lastSyncedText = String(lastSyncedRaw);
-            }
-          }
-
-          let popoverBodyHtml = `
-            <div style="display: flex; align-items: center; gap: 8px; font-weight: 700; padding: 6px 10px; background: ${stateBg}; border: 1px solid ${stateBorder}; color: ${stateTextColor}; border-radius: 8px; margin-bottom: 10px;">
-              <span style="font-size: 1rem;">${dotEmoji}</span>
-              <span style="font-size: 0.88rem;">${stateLabel}</span>
-            </div>
-          `;
-
-          if (user) {
-            popoverBodyHtml += `
-              <div style="display: flex; flex-direction: column; gap: 6px; padding: 4px 2px; font-size: 0.82rem; color: #334155;">
-                <div style="display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${userEmail}">
-                  <span style="color: #64748b;">👤</span> <strong style="color: #0f172a; overflow: hidden; text-overflow: ellipsis;">${userEmail}</strong>
-                </div>
-                ${grupoNombre ? `
-                  <div style="display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                    <span style="color: #64748b;">📚</span> <span>Grupo: <strong>${grupoNombre}</strong></span>
-                  </div>
-                ` : ''}
-                <div style="display: flex; align-items: center; gap: 6px;">
-                  <span style="color: #64748b;">⏱️</span> <span>Última sincronización: <strong>${lastSyncedText}</strong></span>
-                </div>
-              </div>
-            `;
-          } else {
-            popoverBodyHtml += `
-              <div style="font-size: 0.82rem; color: #64748b; margin-bottom: 10px; line-height: 1.4;">
-                Inicia sesión con tu cuenta para guardar y sincronizar tu cuaderno en la nube.
-              </div>
-              <div style="display: flex; justify-content: flex-end;">
-                <button class="btn btn-primary btn-sm" onclick="app.cerrarPopoverNube(); app.abrirModalNube();" style="font-size: 0.78rem; padding: 5px 10px; border-radius: 6px; width: 100%; justify-content: center;">
-                  ☁️ Conectar Nube
-                </button>
-              </div>
-            `;
-          }
-
-          const popoverHtml = `
-            <div id="cloudStatusPopover" class="cloud-popover-panel" style="display: ${popoverDisplayStyle};" onclick="event.stopPropagation()">
-              ${popoverBodyHtml}
-            </div>
-          `;
-
           headerEl.innerHTML = `
-            <div style="display: inline-flex; align-items: center; gap: 6px; position: relative;">
+            <div style="display: inline-flex; align-items: center; gap: 6px;">
               ${btnIndicatorHtml}
               ${btnLogoutHtml}
-              ${popoverHtml}
             </div>
           `;
         }
@@ -11858,10 +12765,6 @@ import USER_DATASET from './userDataset.json';
 
         this.data = remoteData;
         this.data.hasPendingSync = false;
-        const storageKey = this.getStorageKey();
-        try {
-          localStorage.setItem(storageKey, JSON.stringify(this.data));
-        } catch (e) {}
         this.cargarDatos();
         this.actualizarUI();
         this.mostrarNotificacionToast("☁️ Cuaderno sincronizado desde la nube en tiempo real");
@@ -11893,6 +12796,168 @@ import USER_DATASET from './userDataset.json';
         body.innerHTML = this.generarHTMLContenidoNube(false);
       }
 
+      comprobarYGenerarBackupSemanalAuto() {
+        if (!this.data || !this.data.grupos || this.data.grupos.length === 0) return;
+
+        const SIETE_DIAS_MS = 7 * 24 * 60 * 60 * 1000;
+        const now = Date.now();
+        const lastAutoStr = localStorage.getItem("fernanditio_last_auto_backup_timestamp");
+        const lastAuto = lastAutoStr ? parseInt(lastAutoStr, 10) : 0;
+
+        if (!lastAuto || (now - lastAuto >= SIETE_DIAS_MS)) {
+          this.generarBackupSemanalAuto(true);
+        }
+      }
+
+      generarBackupSemanalManualAhora() {
+        this.generarBackupSemanalAuto(false);
+        this.mostrarToast("⚡ Copia semanal creada manualmente con éxito.");
+      }
+
+      generarBackupSemanalAuto(notificar = false) {
+        if (!this.data) return;
+
+        const now = Date.now();
+        const dateObj = new Date(now);
+        const fechaFmt = `${dateObj.toLocaleDateString()} ${dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+
+        let list = [];
+        try {
+          const raw = localStorage.getItem("fernanditio_weekly_backups_list");
+          if (raw) list = JSON.parse(raw);
+        } catch (e) {
+          list = [];
+        }
+
+        const newEntry = {
+          timestamp: now,
+          fecha: fechaFmt,
+          nombre: `Copia Semanal ${dateObj.toLocaleDateString()}`,
+          data: JSON.parse(JSON.stringify(this.data))
+        };
+
+        list.unshift(newEntry);
+        if (list.length > 6) {
+          list = list.slice(0, 6);
+        }
+
+        try {
+          localStorage.setItem("fernanditio_weekly_backups_list", JSON.stringify(list));
+          localStorage.setItem("fernanditio_last_auto_backup_timestamp", String(now));
+        } catch (e) {
+          console.warn("Storage quota exceeded saving weekly backup locally:", e);
+        }
+
+        if (this.subConfigActiva === "copias") {
+          this.renderizarBackupsSemanalesAuto();
+        }
+
+        if (notificar) {
+          this.mostrarToast("📅 ¡Copia de seguridad semanal creada automáticamente! (Disponible en Configuración > Copia de Seguridad)");
+        }
+      }
+
+      renderizarBackupsSemanalesAuto() {
+        const cont = document.getElementById("listaBackupsSemanalesContenido");
+        if (!cont) return;
+
+        let list = [];
+        try {
+          const raw = localStorage.getItem("fernanditio_weekly_backups_list");
+          if (raw) list = JSON.parse(raw);
+        } catch (e) {
+          list = [];
+        }
+
+        if (!list || list.length === 0) {
+          cont.innerHTML = `
+            <div style="text-align: center; padding: 20px; color: #64748b; font-size: 0.88rem;">
+              <p>No hay respaldos semanales generados aún.</p>
+              <button type="button" class="btn btn-primary btn-sm" onclick="app.generarBackupSemanalManualAhora()" style="margin-top: 8px;">
+                ⚡ Generar primera copia ahora
+              </button>
+            </div>
+          `;
+          return;
+        }
+
+        let html = `<div style="display: flex; flex-direction: column; gap: 10px;">`;
+        list.forEach((item, idx) => {
+          const numGrupos = item.data && item.data.grupos ? item.data.grupos.length : 0;
+          let totalAlu = 0;
+          if (item.data && item.data.grupos) {
+            item.data.grupos.forEach(g => {
+              totalAlu += (g.alumnos ? g.alumnos.length : 0);
+            });
+          }
+
+          html += `
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; flex-wrap: wrap;">
+              <div>
+                <div style="font-weight: 700; font-size: 0.9rem; color: #0f172a;">
+                  📅 Respaldo Semanal — ${this.escapeHtml(item.fecha)}
+                </div>
+                <div style="font-size: 0.8rem; color: #64748b; margin-top: 2px;">
+                  <span>👥 ${numGrupos} grupos</span> &nbsp;•&nbsp; <span>👤 ${totalAlu} alumnos</span>
+                </div>
+              </div>
+              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="app.descargarBackupEspecifico(${idx})" style="font-weight: 700; background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe;">
+                  📥 Descargar .JSON
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="app.restaurarBackupEspecifico(${idx})" style="font-weight: 700;">
+                  🔄 Restaurar
+                </button>
+              </div>
+            </div>
+          `;
+        });
+        html += `</div>`;
+        cont.innerHTML = html;
+      }
+
+      descargarBackupEspecifico(idx) {
+        try {
+          const raw = localStorage.getItem("fernanditio_weekly_backups_list");
+          if (!raw) return;
+          const list = JSON.parse(raw);
+          const item = list[idx];
+          if (!item) return;
+
+          const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(item.data, null, 2));
+          const dlAnchorElem = document.createElement("a");
+          const safeDate = item.fecha.replace(/[\/\s:]/g, "_");
+          dlAnchorElem.setAttribute("href", dataStr);
+          dlAnchorElem.setAttribute("download", `Fernanditio_Backup_Semanal_${safeDate}.json`);
+          document.body.appendChild(dlAnchorElem);
+          dlAnchorElem.click();
+          dlAnchorElem.remove();
+          this.mostrarToast("📥 Copia semanal descargada a tu equipo.");
+        } catch (e) {
+          alert("Error al descargar copia semanal: " + e.message);
+        }
+      }
+
+      restaurarBackupEspecifico(idx) {
+        try {
+          const raw = localStorage.getItem("fernanditio_weekly_backups_list");
+          if (!raw) return;
+          const list = JSON.parse(raw);
+          const item = list[idx];
+          if (!item) return;
+
+          if (confirm(`¿Deseas restaurar la copia de seguridad semanal del ${item.fecha}? Se reemplazarán los datos actuales.`)) {
+            this.data = JSON.parse(JSON.stringify(item.data));
+            this.guardarDatos(true);
+            this.cargarDatos();
+            this.actualizarUI();
+            this.mostrarToast("✅ Copia semanal restaurada con éxito.");
+          }
+        } catch (e) {
+          alert("Error al restaurar copia semanal: " + e.message);
+        }
+      }
+
       renderizarConfiguracionNube() {
         const cont = document.getElementById("cfgNubeContenido");
         if (!cont) return;
@@ -11903,36 +12968,47 @@ import USER_DATASET from './userDataset.json';
         const sbStatus = window.supabaseSync ? window.supabaseSync.status : null;
         const lastSynced = (sbStatus && sbStatus.lastSyncedAt) ? sbStatus.lastSyncedAt : (this.cloudStatus && this.cloudStatus.lastSynced ? this.formatearHoraCompleta(this.cloudStatus.lastSynced) : 'Sin sincronizar aún');
 
+        const currentUserEmail = (window.firebaseSync && window.firebaseSync.status && window.firebaseSync.status.user && window.firebaseSync.status.user.email) ? window.firebaseSync.status.user.email : 'borborigmo@gmail.com';
+
         let html = '';
 
         html += `
-          <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
-              <div>
-                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-                  <span style="width: 10px; height: 10px; border-radius: 50%; background: #16a34a; display: inline-block;"></span>
-                  <strong style="color: #15803d; font-size: 0.95rem;">Sincronización en la Nube Activa (Supabase)</strong>
-                </div>
-                <div style="font-size: 0.85rem; color: #166534; line-height: 1.6;">
-                  👤 <strong>Usuario Docente:</strong> borborigmo@gmail.com<br>
-                  ⏱️ <strong>Última sincronización:</strong> ${lastSynced}<br>
-                  🛡️ <strong>Almacenamiento Único:</strong> Supabase PostgreSQL (Base de datos relacional persistente)
-                </div>
+          <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); margin-bottom: 16px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; border-bottom: 2px solid #f1f5f9; padding-bottom: 12px; flex-wrap: wrap;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="width: 10px; height: 10px; border-radius: 50%; background: #16a34a; display: inline-block;"></span>
+                <strong style="color: #15803d; font-size: 1rem;">Sincronización en la Nube Activa (Supabase)</strong>
               </div>
-              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                <label class="btn btn-sm" style="background: #4f46e5; color: white; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; margin: 0; padding: 6px 12px; border-radius: 6px;">
+              <div style="font-size: 0.83rem; color: #475569;">
+                👤 <strong>Usuario Docente:</strong> ${currentUserEmail} | ⏱️ <strong>Última sync:</strong> ${lastSynced}
+              </div>
+            </div>
+
+            <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 14px;">
+              Explicación detallada de las acciones de sincronización en la nube:
+            </p>
+
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+              <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                <label class="btn btn-sm" style="background: #4f46e5; color: white; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; margin: 0; padding: 8px 14px; border-radius: 6px;">
                   📤 Subir archivo JSON a Supabase
                   <input type="file" accept=".json" style="display: none;" onchange="app.cargarBackup(event)">
                 </label>
-                <button class="btn btn-primary btn-sm" onclick="app.forzarSincronizacionNube()" style="background: #2563eb;">
+                <span style="font-size: 0.83rem; color: #475569;">Sube un archivo <code>.json</code> de copia de seguridad local y lo guarda en las tablas de Supabase.</span>
+              </div>
+
+              <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                <button class="btn btn-primary btn-sm" onclick="app.forzarSincronizacionNube()" style="background: #2563eb; padding: 8px 14px; font-weight: 700;">
                   🔄 Sincronizar Ahora con Supabase
                 </button>
-                <button class="btn btn-success btn-sm" onclick="app.descargarEstadoSupabaseDirecto()" style="background: #059669; color: white; font-weight: 700;">
+                <span style="font-size: 0.83rem; color: #475569;">Fuerza la sincronización instantánea de todos los datos en memoria hacia Supabase.</span>
+              </div>
+
+              <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                <button class="btn btn-success btn-sm" onclick="app.descargarEstadoSupabaseDirecto()" style="background: #059669; color: white; font-weight: 700; padding: 8px 14px;">
                   📥 Recargar datos desde Supabase
                 </button>
-                <button class="btn btn-danger btn-sm" onclick="app.limpiarYRestaurarSupabase()" style="background: #dc2626; color: white; font-weight: 700;">
-                  🗑️ Borrar Supabase y restaurar copia del 24
-                </button>
+                <span style="font-size: 0.83rem; color: #475569;">Reconsulta las tablas relacionales en la nube y actualiza la pantalla con la última información guardada.</span>
               </div>
             </div>
           </div>
@@ -12005,7 +13081,7 @@ import USER_DATASET from './userDataset.json';
           this.mostrarNotificacionToast("🟢 Sesión iniciada con Google. Cuaderno sincronizado.");
           this.actualizarModalNube();
         } catch (err) {
-          console.error("Error al iniciar sesión con Google en app.js:", err);
+          console.warn("Error al iniciar sesión con Google en app.js:", err);
           const code = err ? (err.code || "") : "";
           const msg = err ? (err.message || String(err)) : "Error al iniciar sesión con Google";
           if (code === 'auth/popup-blocked' || msg.includes('popup-blocked')) {
@@ -12050,58 +13126,41 @@ import USER_DATASET from './userDataset.json';
       }
 
       async forzarSincronizacionNube() {
-        if (window.supabaseSync) {
+        const syncInstance = window.supabaseSync || supabaseSync;
+        if (syncInstance) {
           this.mostrarNotificacionToast("🔄 Guardando y sincronizando con Supabase...");
-          await window.supabaseSync.syncNotebookToSupabase('docente_borborigmo_gmail_com', this.data);
+          await syncInstance.syncNotebookToSupabase(this.getProfesorId(), this.data);
           this.mostrarNotificacionToast("✅ ¡Datos sincronizados con éxito en Supabase!");
         }
       }
 
       async descargarEstadoSupabaseDirecto() {
-        if (!window.supabaseSync) return;
+        const syncInstance = window.supabaseSync || supabaseSync;
+        if (!syncInstance) return;
         this.mostrarNotificacionToast("⏳ Consultando estado directo de las tablas relacionales en Supabase...");
         try {
-          const remoteData = await window.supabaseSync.fetchNotebookFromSupabase('docente_borborigmo_gmail_com');
+          const remoteData = await syncInstance.fetchNotebookFromSupabase(this.getProfesorId());
           this.data = remoteData || { grupos: [] };
-          const storageKey = this.getStorageKey();
-          if (storageKey) {
-            localStorage.setItem(storageKey, JSON.stringify(this.data));
-          }
+          this.data.hasPendingSync = false;
+          this.cargarDatos();
           this.actualizarUI();
           let totalAlu = 0;
+          let totalRub = 0;
           if (Array.isArray(this.data.grupos)) {
             this.data.grupos.forEach(g => {
               totalAlu += Array.isArray(g.alumnos) ? g.alumnos.length : 0;
+              totalRub += Array.isArray(g.rubricas) ? g.rubricas.length : 0;
             });
           }
-          this.mostrarNotificacionToast(`✅ Estado cargado desde Supabase (${this.data.grupos ? this.data.grupos.length : 0} grupos, ${totalAlu} alumnos).`);
+          this.mostrarNotificacionToast(`✅ Estado cargado desde Supabase (${this.data.grupos ? this.data.grupos.length : 0} grupos, ${totalAlu} alumnos, ${totalRub} rúbricas).`);
         } catch (err) {
-          console.error("Error al descargar de Supabase:", err);
+          console.warn("Error al descargar de Supabase:", err);
           this.mostrarNotificacionToast("⚠️ Error al consultar Supabase.");
         }
       }
 
       async limpiarYRestaurarSupabase() {
-        if (confirm("¿Estás seguro de que deseas borrar TODOS los datos de Supabase y volver a cargar únicamente la copia limpia del 24 de septiembre?")) {
-          try {
-            this.mostrarToast("⏳ Borrando datos en Supabase y restaurando versión del 24...");
-            if (window.supabaseSync) {
-              const dataset = (await import('./userDataset.json')).default;
-              await window.supabaseSync.clearSupabaseData('docente_borborigmo_gmail_com');
-              await window.supabaseSync.seedRelationalDataToSupabase('docente_borborigmo_gmail_com', dataset, true);
-              await window.supabaseSync.syncNotebookToSupabase('docente_borborigmo_gmail_com', dataset);
-              this.data = JSON.parse(JSON.stringify(dataset));
-              this.guardarDatos();
-              this.cargarDatos();
-              this.actualizarUI();
-              this.renderizarConfiguracionNube();
-              this.mostrarToast("✅ ¡Datos de Supabase borrados correctamente y restaurados con la copia del 24!");
-              alert("✅ ¡Éxito! Todos los datos en Supabase han sido borrados y reemplazados exclusivamente por la copia limpia del 24 de septiembre.");
-            }
-          } catch (err) {
-            alert("Error al limpiar Supabase: " + (err.message || String(err)));
-          }
-        }
+        this.mostrarToast("⚠️ Supabase es la única fuente de verdad. No se cargan datasets de prueba de forma automática.");
       }
 
       /* ==========================================================================

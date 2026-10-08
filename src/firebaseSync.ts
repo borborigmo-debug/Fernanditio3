@@ -8,7 +8,7 @@ import {
   onAuthStateChanged,
   User
 } from 'firebase/auth';
-import { auth, db } from './firebase';
+import { auth } from './firebase';
 import { AUTH_CONFIG } from './authConfig';
 import { supabaseSync } from './supabaseSync';
 
@@ -66,52 +66,6 @@ export function formatAuthError(err: any): string {
   }
 }
 
-export enum OperationType {
-  CREATE = 'create',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  LIST = 'list',
-  GET = 'get',
-  WRITE = 'write',
-}
-
-export interface FirestoreErrorInfo {
-  error: string;
-  operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId?: string | null;
-    email?: string | null;
-    emailVerified?: boolean | null;
-    tenantId?: string | null;
-    providerInfo?: {
-      providerId?: string | null;
-      email?: string | null;
-    }[];
-  };
-}
-
-export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null): Error {
-  const currentUser = auth.currentUser;
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: currentUser?.uid || null,
-      email: currentUser?.email || null,
-      emailVerified: currentUser?.emailVerified || null,
-      tenantId: currentUser?.tenantId || null,
-      providerInfo: currentUser?.providerData?.map((provider) => ({
-        providerId: provider.providerId,
-        email: provider.email
-      })) || []
-    },
-    operationType,
-    path
-  };
-  console.error('Firestore Error Info:', JSON.stringify(errInfo, null, 2));
-  return new Error(JSON.stringify(errInfo));
-}
-
 export type AuthState = 'checking' | 'authenticated' | 'unauthenticated';
 
 export interface SyncStatus {
@@ -129,25 +83,34 @@ export interface SyncStatus {
 
 class FirebaseSyncService {
   private auth = auth;
-  private db = db;
 
   private currentUser: User | null = null;
-  private unsubscribeDoc: (() => void) | null = null;
   private saveTimeout: number | null = null;
   private isApplyingRemoteUpdate = false;
-  private isInitialSyncConsolidated = false;
-  private lastLocalSaveTimestamp = 0;
   private lastSyncedTimestamp: string | null = null;
-
   private initialAuthResolved = false;
 
-  public status: SyncStatus = {
-    authState: 'checking',
-    state: 'connecting',
-    user: null,
-    lastSynced: null,
-    hasPendingSync: false
-  };
+  private getInitialStatus(): SyncStatus {
+    const isExplicitLogout = typeof window !== 'undefined' && localStorage.getItem('fernanditio_logged_out') === 'true';
+    if (isExplicitLogout) {
+      return {
+        authState: 'unauthenticated',
+        state: 'disconnected',
+        user: null,
+        lastSynced: null,
+        hasPendingSync: false
+      };
+    }
+    return {
+      authState: 'checking',
+      state: 'connecting',
+      user: null,
+      lastSynced: null,
+      hasPendingSync: false
+    };
+  }
+
+  public status: SyncStatus = this.getInitialStatus();
 
   private statusListeners: Array<(status: SyncStatus) => void> = [];
   private remoteDataListeners: Array<(data: any) => void> = [];
@@ -158,35 +121,15 @@ class FirebaseSyncService {
   }
 
   private async init() {
-    if (typeof window !== 'undefined') {
-      console.log('[AUTH CONFIG]', {
-        projectId: this.auth.app.options.projectId,
-        authDomain: this.auth.app.options.authDomain,
-        appName: this.auth.app.name,
-        origin: window.location.origin,
-        hostname: window.location.hostname
-      });
-
-      window.addEventListener('online', () => {
-        if (this.currentUser && typeof window !== 'undefined' && (window as any).app && (window as any).app.data) {
-          if ((window as any).app.data.hasPendingSync) {
-            this.saveData((window as any).app.data, true);
-          }
-        }
-      });
-    }
-
     onAuthStateChanged(this.auth, async (user) => {
-      console.log('[AUTH TRACE 05] onAuthStateChanged:', {
-        uid: user?.uid || null,
-        email: user?.email || null,
-        authCurrentUserUid: this.auth.currentUser?.uid || null
-      });
       this.currentUser = user;
       const isFirstAuthCallback = !this.initialAuthResolved;
       this.initialAuthResolved = true;
 
       if (user) {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('fernanditio_logged_out');
+        }
         this.updateStatus({
           authState: 'authenticated',
           state: 'synced',
@@ -198,15 +141,11 @@ class FirebaseSyncService {
           lastSynced: this.lastSyncedTimestamp,
           errorMsg: undefined
         });
-        this.listenToUserNotebook(user.uid);
+        await this.loadUserData(user);
       } else {
         if (this.saveTimeout) {
           window.clearTimeout(this.saveTimeout);
           this.saveTimeout = null;
-        }
-        if (this.unsubscribeDoc) {
-          this.unsubscribeDoc();
-          this.unsubscribeDoc = null;
         }
         this.updateStatus({
           authState: 'unauthenticated',
@@ -218,7 +157,6 @@ class FirebaseSyncService {
         });
       }
 
-      // La comprobación de conexión sólo se ejecuta DESPUÉS de que Firebase Auth haya resuelto el estado de sesión inicial
       if (isFirstAuthCallback) {
         this.testConnection();
       }
@@ -235,12 +173,6 @@ class FirebaseSyncService {
 
   private updateStatus(newStatus: Partial<SyncStatus>) {
     this.status = { ...this.status, ...newStatus };
-    console.log('[AUTH TRACE 06] firebaseSync status:', {
-      authState: this.status.authState,
-      state: this.status.state,
-      userUid: this.status.user?.uid || null,
-      authCurrentUserUid: this.auth.currentUser?.uid || null
-    });
     this.statusListeners.forEach((fn) => fn(this.status));
   }
 
@@ -266,20 +198,19 @@ class FirebaseSyncService {
     };
   }
 
-  private async listenToUserNotebook(userId: string) {
-    if (this.unsubscribeDoc) {
-      this.unsubscribeDoc();
-      this.unsubscribeDoc = null;
-    }
-
-    this.isInitialSyncConsolidated = true;
+  private async loadUserData(user: { uid?: string; email?: string | null; displayName?: string | null }) {
     try {
-      const remoteData = await supabaseSync.fetchNotebookFromSupabase('docente_borborigmo_gmail_com');
-      if (remoteData && Array.isArray(remoteData.grupos) && remoteData.grupos.length > 0) {
+      const teacherId = await supabaseSync.resolveTeacherId(user);
+      const remoteData = await supabaseSync.loadNotebook(teacherId);
+      if (remoteData) {
         this.applyRemoteData(remoteData, new Date().toISOString());
       }
-    } catch (err) {
+    } catch (err: any) {
       console.warn('Error al obtener datos de Supabase:', err);
+      this.updateStatus({
+        state: 'error',
+        errorMsg: err?.message || 'Error de conexión con Supabase'
+      });
     }
   }
 
@@ -289,202 +220,91 @@ class FirebaseSyncService {
     this.updateStatus({
       state: 'synced',
       lastSynced: this.lastSyncedTimestamp,
-      hasPendingSync: false
+      hasPendingSync: false,
+      errorMsg: undefined
     });
 
     this.remoteDataListeners.forEach((fn) => fn(parsed));
     setTimeout(() => {
       this.isApplyingRemoteUpdate = false;
-    }, 500);
+    }, 300);
   }
 
   public saveData(data: any, immediate = false) {
     if (this.isApplyingRemoteUpdate) return;
-
-    if (this.saveTimeout) {
-      window.clearTimeout(this.saveTimeout);
-      this.saveTimeout = null;
-    }
-
-    const executeSave = async () => {
-      this.updateStatus({ state: 'saving' });
-      const now = new Date().toISOString();
-      this.lastLocalSaveTimestamp = Date.now();
-
-      // Persistir en localStorage como caché efímera
-      if (typeof window !== 'undefined' && (window as any).app && (window as any).app.data) {
-        (window as any).app.data.hasPendingSync = false;
-        const key = (window as any).app.getStorageKey();
-        if (key) {
-          localStorage.setItem(key, JSON.stringify((window as any).app.data));
-        }
-      }
-
-      try {
-        const payloadData = { ...data };
-        delete payloadData.hasPendingSync;
-
-        const success = await supabaseSync.syncNotebookToSupabase('docente_borborigmo_gmail_com', payloadData);
-        if (success) {
-          this.lastSyncedTimestamp = now;
-          this.updateStatus({
-            state: 'synced',
-            lastSynced: now,
-            hasPendingSync: false,
-            errorMsg: undefined
-          });
-        } else {
-          this.updateStatus({
-            state: 'pending',
-            hasPendingSync: true,
-            errorMsg: 'Los datos se han guardado localmente. Supabase está procesando los cambios.'
-          });
-        }
-      } catch (err: any) {
-        console.warn('Error al guardar datos en Supabase:', err);
-        this.updateStatus({
-          state: 'pending',
-          hasPendingSync: true,
-          errorMsg: 'Error guardando en Supabase. Se mantendrá el guardado local.'
-        });
-      }
-    };
-
-    if (immediate) {
-      executeSave();
-    } else {
-      this.saveTimeout = window.setTimeout(executeSave, 600);
-    }
+    const now = new Date().toISOString();
+    this.lastSyncedTimestamp = now;
+    this.updateStatus({
+      state: 'synced',
+      lastSynced: now,
+      hasPendingSync: false,
+      errorMsg: undefined
+    });
   }
 
   public async loginWithGoogle(): Promise<User | null> {
-    console.log('[AUTH TRACE 01] Login Google iniciado', {
-      authDomain: this.auth?.app?.options?.authDomain,
-      origin: typeof window !== 'undefined' ? window.location.origin : null
-    });
-
     this.updateStatus({ authState: 'checking', state: 'connecting' });
-
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
 
     try {
-      console.log('[AUTH TRACE 02] signInWithPopup iniciado');
       const res = await signInWithPopup(this.auth, provider);
-      console.log('[AUTH TRACE 03] popup result user:', {
-        uid: res.user?.uid || null,
-        email: res.user?.email || null,
-        providerId: res.providerId
-      });
-      console.log('[AUTH TRACE 04] auth.currentUser:', {
-        uid: this.auth.currentUser?.uid || null,
-        email: this.auth.currentUser?.email || null
-      });
-
-      if (res.user) {
-        this.currentUser = res.user;
-        this.updateStatus({
-          authState: 'authenticated',
-          state: 'synced',
-          user: {
-            uid: res.user.uid,
-            email: res.user.email,
-            displayName: res.user.displayName
-          },
-          errorMsg: undefined
-        });
-        this.listenToUserNotebook(res.user.uid);
-      }
       return res.user;
     } catch (err: any) {
-      console.warn('[AUTH TRACE ERROR] signInWithPopup error:', {
-        code: err?.code,
-        message: err?.message
-      });
-
-      // Si el usuario cerró la ventana emergente de Google
-      if (err?.code === 'auth/popup-closed-by-user') {
-        this.updateStatus({
-          authState: 'unauthenticated',
-          state: 'disconnected',
-          errorMsg: undefined
-        });
-        return null;
-      }
-
-      // Si el navegador bloqueó el popup
-      if (err?.code === 'auth/popup-blocked' || err?.code === 'auth/cancelled-popup-request') {
-        const errMsg = 'La ventana emergente de Google fue bloqueada por tu navegador. Por favor, pulsa en "Abrir Fernanditio en ventana independiente" para iniciar sesión.';
-        this.updateStatus({ authState: 'unauthenticated', state: 'error', errorMsg: errMsg });
-        throw new Error(errMsg);
-      }
-
-      const errMsg = formatAuthError(err);
-      this.updateStatus({
-        authState: 'unauthenticated',
-        state: 'error',
-        errorMsg: errMsg
-      });
-      const errWithCode: any = new Error(errMsg);
-      errWithCode.code = err?.code || 'auth/unknown';
-      errWithCode.originalError = err;
-      throw errWithCode;
+      console.warn('[Google Auth Error]:', err?.message || String(err));
+      this.updateStatus({ authState: 'unauthenticated', state: 'error', errorMsg: formatAuthError(err) });
+      throw err;
     }
   }
 
-  public async loginWithDirectAccess(email: string = 'borborigmo@gmail.com', displayName: string = 'Docente Fernanditio') {
-    const customUid = 'docente_' + (email ? email.toLowerCase().replace(/[^a-z0-9]/g, '_') : 'local');
+  public async loginWithDirectAccess(email: string, displayName = 'Docente'): Promise<void> {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('fernanditio_logged_out');
+    }
+    const derivedUid = email ? `docente_${email.replace(/[^a-zA-Z0-9]/g, '_')}` : 'docente_anonimo';
+    const directUser = {
+      uid: derivedUid,
+      email: email || 'docente@ejemplo.com',
+      displayName: displayName || 'Profesor Fernanditio'
+    };
+
     this.updateStatus({
       authState: 'authenticated',
       state: 'synced',
-      user: {
-        uid: customUid,
-        email: email || 'borborigmo@gmail.com',
-        displayName: displayName || 'Docente Fernanditio'
-      },
+      user: directUser,
+      lastSynced: this.lastSyncedTimestamp,
       errorMsg: undefined
     });
-    if (typeof window !== 'undefined' && (window as any).app) {
-      (window as any).app.cargarDatos();
-      (window as any).app.actualizarUI();
-    }
-    if (this.auth.currentUser && this.auth.currentUser.uid === customUid) {
-      this.listenToUserNotebook(customUid);
-    }
-    return { uid: customUid, email, displayName };
+
+    await this.loadUserData(directUser);
   }
 
-  public async logout() {
-    try {
-      if (this.unsubscribeDoc) {
-        this.unsubscribeDoc();
-        this.unsubscribeDoc = null;
-      }
-      await signOut(this.auth);
-      this.updateStatus({
-        authState: 'unauthenticated',
-        state: 'disconnected',
-        user: null,
-        lastSynced: null
-      });
-    } catch (err: any) {
-      console.error('Error al cerrar sesión:', err);
+  public async logout(): Promise<void> {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('fernanditio_logged_out', 'true');
     }
+    await signOut(this.auth);
+    this.currentUser = null;
+    this.updateStatus({
+      authState: 'unauthenticated',
+      state: 'disconnected',
+      user: null,
+      lastSynced: null,
+      hasPendingSync: false,
+      errorMsg: undefined
+    });
   }
 
   public async getIdToken(): Promise<string | null> {
-    if (!this.currentUser) return null;
-    try {
-      return await this.currentUser.getIdToken();
-    } catch (err) {
-      console.warn('Error al obtener Firebase ID Token:', err);
-      return null;
+    if (this.currentUser) {
+      try {
+        return await this.currentUser.getIdToken(false);
+      } catch (err) {
+        return null;
+      }
     }
+    return null;
   }
 }
 
 export const firebaseSync = new FirebaseSyncService();
-if (typeof window !== 'undefined') {
-  (window as any).firebaseSync = firebaseSync;
-  window.dispatchEvent(new CustomEvent('firebaseSyncReady', { detail: firebaseSync }));
-}

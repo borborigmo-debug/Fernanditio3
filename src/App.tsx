@@ -161,14 +161,40 @@ export default function App() {
   return (
     <>
       {headerTarget && createPortal(
-        <div className="flex items-center gap-2.5 bg-slate-800/90 border border-emerald-500/40 px-3 py-1.5 rounded-xl text-xs text-slate-100 shadow-md backdrop-blur-sm">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span className="truncate max-w-[160px] font-semibold">{status.user.email || 'Docente'}</span>
+        <div className="flex items-center gap-1.5">
           <button
-            onClick={handleLogout}
-            className="bg-red-500/20 hover:bg-red-500/30 text-red-300 px-2.5 py-1 rounded-lg transition text-[11px] font-medium cursor-pointer"
+            type="button"
+            id="btnCloudStatusIndicator"
+            className="btn-cloud-compact"
+            onClick={(e) => {
+              if ((window as any).app && typeof (window as any).app.alternarPopoverNube === 'function') {
+                (window as any).app.alternarPopoverNube(e);
+              }
+            }}
+            title={status.user.email || 'borborigmo@gmail.com'}
+            aria-label={status.user.email || 'borborigmo@gmail.com'}
           >
-            Cerrar sesión
+            <div className="relative flex items-center justify-center">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-700">
+                <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"></path>
+              </svg>
+              <span className="absolute -bottom-[2px] -right-[2px] w-[7px] h-[7px] rounded-full bg-emerald-500 border border-white"></span>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            id="btnCloudHeaderLogout"
+            className="btn-cloud-compact btn-logout"
+            onClick={handleLogout}
+            title="cerrar sesión"
+            aria-label="cerrar sesión"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
           </button>
         </div>,
         headerTarget

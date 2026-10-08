@@ -4,6 +4,7 @@ import Cropper from 'cropperjs';
 import 'cropperjs/dist/cropper.css';
 
 (window as any).Cropper = Cropper;
+(window as any).XLSX = XLSX;
 
 export type RubricType = 'actividad' | 'examen' | 'trabajo' | 'personalizada';
 

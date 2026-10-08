@@ -38,7 +38,8 @@ CREATE TABLE IF NOT EXISTS criterios (
   grupo_id TEXT REFERENCES grupos(id) ON DELETE CASCADE,
   codigo TEXT NOT NULL,
   descripcion TEXT NOT NULL,
-  ponderacion NUMERIC DEFAULT 0
+  ponderacion NUMERIC DEFAULT 0,
+  UNIQUE (grupo_id, codigo)
 );
 
 -- 5. Secciones de Evaluación
