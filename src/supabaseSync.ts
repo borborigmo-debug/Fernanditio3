@@ -238,6 +238,7 @@ class SupabaseSyncManager {
           throw new Error(`Error al consultar grupos en Supabase: ${errGrupos.message}`);
         }
 
+        // Si se fuerza la recarga (forceOverride es true), ignoramos el contador de mutaciones local
         if (!forceOverride && this.mutationCounter > startMutationCount) {
           console.warn('[SupabaseSyncManager] Notice: Carga remota ignorada porque se produjeron modificaciones locales posteriores.');
           return null;
@@ -436,7 +437,7 @@ class SupabaseSyncManager {
         grupos: notebookGrupos,
         premios: (backupData && Array.isArray(backupData.premios)) ? backupData.premios : [],
         plantillasRubricas: (backupData && Array.isArray(backupData.plantillasRubricas)) ? backupData.plantillasRubricas : [],
-        grupoActivoId: notebookGrupos[0]?.id || null,
+        grupoActivoId: (backupData && backupData.grupoActivoId) ? backupData.grupoActivoId : (notebookGrupos[0]?.id || null),
         version: (backupData && backupData.version) ? backupData.version : 1,
         updatedAt: new Date().toISOString()
       };
@@ -1071,8 +1072,8 @@ class SupabaseSyncManager {
     });
   }
 
-  public async fetchNotebookFromSupabase(profesorId: string): Promise<any> {
-    return await this.loadNotebook(profesorId);
+  public async fetchNotebookFromSupabase(profesorId: string, forceOverride = true): Promise<any> {
+    return await this.loadNotebook(profesorId, forceOverride);
   }
 }
 

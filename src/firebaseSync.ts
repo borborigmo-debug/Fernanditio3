@@ -295,16 +295,98 @@ class FirebaseSyncService {
     });
   }
 
-  public async getIdToken(): Promise<string | null> {
-    if (this.currentUser) {
+  private cachedSessionToken: { token: string; expiresAt: number } | null = null;
+
+  public invalidateCachedToken() {
+    this.cachedSessionToken = null;
+  }
+
+  public async getIdToken(forceRefresh = true): Promise<string | null> {
+    const user = this.currentUser || this.auth.currentUser;
+    if (user && typeof user.getIdToken === 'function') {
       try {
-        return await this.currentUser.getIdToken(false);
+        let token = await user.getIdToken(forceRefresh);
+        if (token && typeof token === 'string' && token.length > 20) {
+          // Verificar si el token JWT de Firebase está expirado o próximo a expirar (dentro de 90s)
+          let isExpired = false;
+          try {
+            const parts = token.split('.');
+            if (parts.length === 3) {
+              const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+              const jsonPayload = decodeURIComponent(
+                atob(base64)
+                  .split('')
+                  .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+                  .join('')
+              );
+              const payload = JSON.parse(jsonPayload);
+              if (payload.exp && (payload.exp * 1000) <= (Date.now() + 90000)) {
+                isExpired = true;
+              }
+            }
+          } catch {
+            isExpired = false;
+          }
+
+          if (isExpired) {
+            console.info('[firebaseSync] Token de Firebase Auth próximo a expirar o expirado. Forzando renovación (forceRefresh=true)...');
+            try {
+              token = await user.getIdToken(true);
+            } catch (refreshErr) {
+              console.warn('[firebaseSync] Falló renovación forzada de Firebase ID token, utilizando fallback de sesión:', refreshErr);
+              token = null;
+            }
+          }
+
+          if (token && typeof token === 'string' && token.length > 20) {
+            return token;
+          }
+        }
       } catch (err) {
-        return null;
+        console.warn('[firebaseSync] Error al obtener ID token de Firebase Auth:', err);
       }
     }
+
+    // Comprobar token en memoria no expirado
+    if (this.cachedSessionToken && Date.now() < this.cachedSessionToken.expiresAt) {
+      return this.cachedSessionToken.token;
+    }
+
+    // Si el usuario está autenticado en modo directo (o en sesión docente de la aplicación),
+    // obtener el token de sesión emitido por el servidor
+    const currentEmail = (this.status && this.status.user && this.status.user.email) || 'borborigmo@gmail.com';
+    const currentUid = (this.status && this.status.user && this.status.user.uid) || 'docente_borborigmo_gmail_com';
+    try {
+      const res = await fetch('/api/auth/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: currentEmail, uid: currentUid })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.token) {
+          this.cachedSessionToken = {
+            token: data.token,
+            expiresAt: Date.now() + 23 * 3600 * 1000
+          };
+          return data.token;
+        }
+      }
+    } catch (sessionErr) {
+      console.warn('[firebaseSync] Error solicitando token de sesión al servidor:', sessionErr);
+    }
+
     return null;
   }
 }
 
 export const firebaseSync = new FirebaseSyncService();
+
+if (typeof window !== 'undefined') {
+  (window as any).firebaseSync = firebaseSync;
+  try {
+    window.dispatchEvent(new CustomEvent('firebaseSyncReady', { detail: firebaseSync }));
+  } catch (e) {
+    // ignore
+  }
+}

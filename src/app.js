@@ -1,7 +1,11 @@
 import { supabaseSync } from './supabaseSync';
+import { firebaseSync } from './firebaseSync';
+import { auth } from './firebase';
 
 if (typeof window !== 'undefined') {
   window.supabaseSync = supabaseSync;
+  window.firebaseSync = firebaseSync;
+  window.firebaseAuth = auth;
 }
 
     /**
@@ -158,7 +162,11 @@ if (typeof window !== 'undefined') {
         this.data = null;
         this.grupoActivo = null;
         this.evaluacionActiva = "eval1"; // eval1 | eval2 | eval3 | final
-        this.vistaActiva = "cuaderno"; // cuaderno | resultados | configuracion
+        let savedVista = "cuaderno";
+        if (typeof localStorage !== "undefined") {
+          try { savedVista = localStorage.getItem("fernanditio_vistaActiva") || "cuaderno"; } catch (e) {}
+        }
+        this.vistaActiva = savedVista; // cuaderno | resultados | configuracion
         this.subConfigActiva = "cursos";
         this.activeGearMenu = null;
         this.rubricaEvaluando = null; // { actividadId, alumnoId, selecciones: [] }
@@ -566,8 +574,9 @@ if (typeof window !== 'undefined') {
       }
 
       getProfesorId() {
-        if (window.firebaseSync && window.firebaseSync.status && window.firebaseSync.status.user) {
-          const u = window.firebaseSync.status.user;
+        const fbSync = (typeof window !== 'undefined' && window.firebaseSync) ? window.firebaseSync : firebaseSync;
+        if (fbSync && fbSync.status && fbSync.status.user) {
+          const u = fbSync.status.user;
           if (u.email) return `docente_${u.email.replace(/[^a-zA-Z0-9]/g, '_')}`;
           if (u.uid) return u.uid;
         }
@@ -578,6 +587,113 @@ if (typeof window !== 'undefined') {
           return window.firebaseAuthCurrentUserUid;
         }
         return '';
+      }
+
+      async getFirebaseIdToken(forceRefresh = true) {
+        // 1. Obtener token actual directamente con user.getIdToken(true)
+        try {
+          const user = (auth && auth.currentUser)
+            || (typeof window !== 'undefined' && window.firebaseAuth && window.firebaseAuth.currentUser)
+            || ((typeof window !== 'undefined' && window.firebaseSync) ? (window.firebaseSync.currentUser || window.firebaseSync.auth?.currentUser) : null);
+          if (user && typeof user.getIdToken === 'function') {
+            const token = await user.getIdToken(true);
+            if (token && typeof token === 'string' && token.trim().length > 10) {
+              return token.trim();
+            }
+          }
+        } catch (tokenErr) {
+          console.warn('[app] Error al obtener token con user.getIdToken(true):', tokenErr);
+        }
+
+        // 2. Intentar a través de firebaseSync
+        const sync = (typeof window !== 'undefined' && window.firebaseSync) ? window.firebaseSync : firebaseSync;
+        if (sync && typeof sync.getIdToken === 'function') {
+          try {
+            const token = await sync.getIdToken(forceRefresh);
+            if (token && typeof token === 'string' && token.trim().length > 10) return token.trim();
+          } catch (e) {
+            console.warn('[app] Error en sync.getIdToken:', e);
+          }
+        }
+
+        // 3. Fallback directo a /api/auth/session para modo directo y recuperación
+        try {
+          const currentEmail = (sync && sync.status && sync.status.user && sync.status.user.email) || 'borborigmo@gmail.com';
+          const currentUid = (sync && sync.status && sync.status.user && sync.status.user.uid) || this.getProfesorId() || 'docente_borborigmo_gmail_com';
+          const res = await fetch('/api/auth/session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: currentEmail, uid: currentUid })
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.token) return data.token;
+          }
+        } catch (sessionErr) {
+          console.warn('[app] Error solicitando token de sesión al servidor:', sessionErr);
+        }
+
+        return null;
+      }
+
+      async fetchWithAuth(url, options = {}) {
+        let token = null;
+
+        // Comprobar si ya viene cabecera Authorization en las opciones
+        if (options.headers) {
+          if (options.headers instanceof Headers) {
+            const hAuth = options.headers.get("Authorization") || options.headers.get("authorization");
+            if (hAuth && hAuth.startsWith("Bearer ")) {
+              token = hAuth.substring(7).trim();
+            }
+          } else if (typeof options.headers === 'object') {
+            const hAuth = options.headers["Authorization"] || options.headers["authorization"];
+            if (hAuth && typeof hAuth === 'string' && hAuth.startsWith("Bearer ")) {
+              token = hAuth.substring(7).trim();
+            }
+          }
+        }
+
+        // Si no se proporcionó previamente en cabeceras, obtener token actual con user.getIdToken(true)
+        if (!token) {
+          token = await this.getFirebaseIdToken(true);
+        }
+
+        const buildReqHeaders = (authToken) => {
+          const h = {};
+          if (options.headers instanceof Headers) {
+            options.headers.forEach((v, k) => { h[k] = v; });
+          } else if (options.headers && typeof options.headers === 'object') {
+            Object.assign(h, options.headers);
+          }
+          if (authToken) {
+            h['Authorization'] = `Bearer ${authToken}`;
+          }
+          return h;
+        };
+
+        const initialOptions = { ...options, headers: buildReqHeaders(token) };
+        let res = await fetch(url, initialOptions);
+
+        // Si devuelve 401, forzar renovación con user.getIdToken(true) o sesión de recuperación y reintentar
+        if (res.status === 401) {
+          console.warn("[app] Recibido HTTP 401 en fetchWithAuth, forzando renovación de token con user.getIdToken(true)...");
+          try {
+            const sync = (typeof window !== 'undefined' && window.firebaseSync) ? window.firebaseSync : firebaseSync;
+            if (sync && typeof sync.invalidateCachedToken === 'function') {
+              sync.invalidateCachedToken();
+            }
+            token = await this.getFirebaseIdToken(true);
+            if (token) {
+              const retryOptions = { ...options, headers: buildReqHeaders(token) };
+              res = await fetch(url, retryOptions);
+            }
+          } catch (retryErr) {
+            console.error("[app] Fallo en reintento tras 401:", retryErr);
+          }
+        }
+
+        return res;
       }
 
       init() {
@@ -713,11 +829,17 @@ if (typeof window !== 'undefined') {
 
         // Grupo activo
         const visibleGroups = (this.data && Array.isArray(this.data.grupos)) ? this.data.grupos.filter(g => !g.oculto) : [];
+        let savedGroupId = null;
+        if (typeof localStorage !== "undefined") {
+          try { savedGroupId = localStorage.getItem("fernanditio_grupoActivoId"); } catch (e) {}
+        }
+        const targetId = savedGroupId || this.data.grupoActivoId;
+
         if (visibleGroups.length > 0) {
-          this.grupoActivo = this.data.grupos.find(g => g.id === this.data.grupoActivoId && !g.oculto) || visibleGroups[0];
+          this.grupoActivo = this.data.grupos.find(g => g.id === targetId && !g.oculto) || (this.data.grupoActivoId ? this.data.grupos.find(g => g.id === this.data.grupoActivoId && !g.oculto) : null) || visibleGroups[0];
           this.data.grupoActivoId = this.grupoActivo ? this.grupoActivo.id : null;
         } else if (this.data && Array.isArray(this.data.grupos) && this.data.grupos.length > 0) {
-          this.grupoActivo = this.data.grupos[0];
+          this.grupoActivo = this.data.grupos.find(g => g.id === targetId) || (this.data.grupoActivoId ? this.data.grupos.find(g => g.id === this.data.grupoActivoId) : null) || this.data.grupos[0];
           this.data.grupoActivoId = this.grupoActivo ? this.grupoActivo.id : null;
         } else {
           this.grupoActivo = null;
@@ -1144,6 +1266,12 @@ if (typeof window !== 'undefined') {
           return;
         }
 
+        // Proteger el flujo de captura de cámara / recorte / análisis de IA contra navegación involuntaria
+        const modalPreview = document.getElementById("modalPreviewFotoRubrica");
+        if (this.isProcessingAI || (modalPreview && modalPreview.classList.contains("open"))) {
+          return;
+        }
+
         // 1. Si hay modal(es) abierto(s), cerrar el modal de nivel superior primero
         const openModals = Array.from(document.querySelectorAll(".modal-overlay.open"));
         if (openModals.length > 0) {
@@ -1193,6 +1321,9 @@ if (typeof window !== 'undefined') {
           } catch (e) {}
         }
         this.vistaActiva = vista;
+        if (typeof localStorage !== "undefined") {
+          try { localStorage.setItem("fernanditio_vistaActiva", vista); } catch (e) {}
+        }
         document.body.classList.remove("scrolled-actividades", "header-revealed");
         if (this.topMenuTimer) {
           clearTimeout(this.topMenuTimer);
@@ -2278,9 +2409,18 @@ if (typeof window !== 'undefined') {
             ? `${this.grupoActivo.nombre || ''} - ${this.grupoActivo.curso || ''} ${this.grupoActivo.materia || ''}`.trim()
             : "";
 
-          const res = await fetch("/api/gemini/parse-rubric", {
+          // Obtener el token actual con user.getIdToken(true) justo antes de enviar la solicitud y agregarlo a los headers
+          const authToken = await this.getFirebaseIdToken(true);
+          const reqHeaders = {
+            "Content-Type": "application/json"
+          };
+          if (authToken) {
+            reqHeaders["Authorization"] = `Bearer ${authToken}`;
+          }
+
+          const res = await this.fetchWithAuth("/api/gemini/parse-rubric", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: reqHeaders,
             signal: controller.signal,
             body: JSON.stringify({
               text: textPrompt,
@@ -2446,7 +2586,7 @@ if (typeof window !== 'undefined') {
           localStorage.setItem("fernanditio_camera_permission_notice_disabled", "true");
           localStorage.setItem("omitirPermisoCamara", "true");
         }
-        this.cerrarModal("modalPermisoCamara");
+        this.cerrarModal("modalPermisoCamara", true);
         this.solicitarPermisoYCamara();
       }
 
@@ -2533,7 +2673,7 @@ if (typeof window !== 'undefined') {
         }
       }
 
-      async optimizarImagenParaIA(dataUrlOrFile, maxDimension = 1600, quality = 0.82) {
+      async optimizarImagenParaIA(dataUrlOrFile, maxDimension = 1400, quality = 0.78) {
         return new Promise((resolve) => {
           const img = new Image();
           img.onload = () => {
@@ -2678,13 +2818,13 @@ if (typeof window !== 'undefined') {
         }
         try {
           const croppedCanvas = this.cropperInstancia.getCroppedCanvas({
-            maxWidth: 2400,
-            maxHeight: 2400,
+            maxWidth: 1400,
+            maxHeight: 1400,
             imageSmoothingQuality: "high"
           });
           if (!croppedCanvas) return;
 
-          const newUrl = croppedCanvas.toDataURL("image/jpeg", 0.90);
+          const newUrl = croppedCanvas.toDataURL("image/jpeg", 0.78);
           this.fotoCapturadaActual.dataUrl = newUrl;
 
           // Reemplazar en cropper con la nueva versión recortada
@@ -2771,7 +2911,7 @@ if (typeof window !== 'undefined') {
         this.mostrarNotificacionToast("📷 Preparando fotografía para comprobación y recorte...", 2000);
 
         try {
-          const optimizado = await this.optimizarImagenParaIA(file, 2000, 0.90);
+          const optimizado = await this.optimizarImagenParaIA(file, 1400, 0.78);
           const dataUrl = optimizado.dataUrl;
           if (!dataUrl) {
             alert("No se pudo cargar la imagen seleccionada.");
@@ -2943,19 +3083,32 @@ if (typeof window !== 'undefined') {
 
         this.isProcessingAI = true;
 
-        // Si la función de recorte está activa, extraer automáticamente el recorte actual
+        // Si la función de recorte está activa, extraer automáticamente el recorte actual con dimensiones y calidad optimizadas
         if (this.cropperInstancia) {
           try {
             const croppedCanvas = this.cropperInstancia.getCroppedCanvas({
-              maxWidth: 2400,
-              maxHeight: 2400,
+              maxWidth: 1400,
+              maxHeight: 1400,
               imageSmoothingQuality: "high"
             });
             if (croppedCanvas) {
-              this.fotoCapturadaActual.dataUrl = croppedCanvas.toDataURL("image/jpeg", 0.90);
+              this.fotoCapturadaActual.dataUrl = croppedCanvas.toDataURL("image/jpeg", 0.78);
             }
           } catch (e) {
             console.warn("No se pudo obtener canvas recortado, usando imagen actual:", e);
+          }
+        }
+
+        // Reducción y compresión garantizada de la fotografía para que Gemini la procese velozmente sin sobrecargar memoria
+        if (this.fotoCapturadaActual && this.fotoCapturadaActual.dataUrl) {
+          try {
+            const optFinal = await this.optimizarImagenParaIA(this.fotoCapturadaActual.dataUrl, 1400, 0.78);
+            if (optFinal && optFinal.dataUrl) {
+              this.fotoCapturadaActual.dataUrl = optFinal.dataUrl;
+              this.fotoCapturadaActual.mimeType = "image/jpeg";
+            }
+          } catch (optErr) {
+            console.warn("Aviso al optimizar fotografía previa al envío a Gemini:", optErr);
           }
         }
 
@@ -3009,15 +3162,16 @@ if (typeof window !== 'undefined') {
             : "";
 
           peticionEnviada = true;
-          const reqHeaders = { "Content-Type": "application/json" };
-          if (window.firebaseSync && typeof window.firebaseSync.getIdToken === "function") {
-            const idToken = await window.firebaseSync.getIdToken();
-            if (idToken) {
-              reqHeaders["Authorization"] = `Bearer ${idToken}`;
-            }
+          // Obtener el token actual con user.getIdToken(true) justo antes de enviar la solicitud y agregarlo a los headers
+          const authToken = await this.getFirebaseIdToken(true);
+          const reqHeaders = {
+            "Content-Type": "application/json"
+          };
+          if (authToken) {
+            reqHeaders["Authorization"] = `Bearer ${authToken}`;
           }
 
-          res = await fetch(endpoint, {
+          res = await this.fetchWithAuth(endpoint, {
             method: "POST",
             headers: reqHeaders,
             signal: controller.signal,
@@ -3350,9 +3504,18 @@ if (typeof window !== 'undefined') {
           const endpoint = "/api/gemini/parse-rubric";
 
           peticionEnviada = true;
-          res = await fetch(endpoint, {
+          // Obtener el token actual con user.getIdToken(true) justo antes de enviar la solicitud y agregarlo a los headers
+          const authToken = await this.getFirebaseIdToken(true);
+          const reqHeaders = {
+            "Content-Type": "application/json"
+          };
+          if (authToken) {
+            reqHeaders["Authorization"] = `Bearer ${authToken}`;
+          }
+
+          res = await this.fetchWithAuth(endpoint, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: reqHeaders,
             signal: controller.signal,
             body: JSON.stringify({
               fileData: fileData,
@@ -6088,6 +6251,9 @@ if (typeof window !== 'undefined') {
         if (found) {
           this.grupoActivo = found;
           this.data.grupoActivoId = found.id;
+          if (typeof localStorage !== "undefined") {
+            try { localStorage.setItem("fernanditio_grupoActivoId", found.id); } catch (e) {}
+          }
 
           // Limpiar de forma absoluta los estados de selección para aislar completamente entre grupos
           this.alumnoCuadernoSeleccionadoId = null;
@@ -12526,11 +12692,12 @@ if (typeof window !== 'undefined') {
           }
         };
 
-        if (window.firebaseSync) {
-          setup(window.firebaseSync);
+        const syncInstance = (typeof window !== "undefined" && window.firebaseSync) ? window.firebaseSync : firebaseSync;
+        if (syncInstance) {
+          setup(syncInstance);
         } else {
           window.addEventListener("firebaseSyncReady", (e) => {
-            setup(e.detail || window.firebaseSync);
+            setup(e.detail || window.firebaseSync || firebaseSync);
           });
         }
       }
@@ -12763,8 +12930,16 @@ if (typeof window !== 'undefined') {
           return;
         }
 
+        // Mantener el grupo activo actual del usuario para que la sincronización en segundo plano no lo altere
+        const currentActiveGroupId = this.grupoActivo ? this.grupoActivo.id : (typeof localStorage !== "undefined" ? localStorage.getItem("fernanditio_grupoActivoId") : null);
+
         this.data = remoteData;
         this.data.hasPendingSync = false;
+
+        if (currentActiveGroupId && this.data.grupos.some(g => g.id === currentActiveGroupId)) {
+          this.data.grupoActivoId = currentActiveGroupId;
+        }
+
         this.cargarDatos();
         this.actualizarUI();
         this.mostrarNotificacionToast("☁️ Cuaderno sincronizado desde la nube en tiempo real");
@@ -13139,7 +13314,7 @@ if (typeof window !== 'undefined') {
         if (!syncInstance) return;
         this.mostrarNotificacionToast("⏳ Consultando estado directo de las tablas relacionales en Supabase...");
         try {
-          const remoteData = await syncInstance.fetchNotebookFromSupabase(this.getProfesorId());
+          const remoteData = await syncInstance.loadNotebook(this.getProfesorId(), true);
           this.data = remoteData || { grupos: [] };
           this.data.hasPendingSync = false;
           this.cargarDatos();
@@ -13397,17 +13572,11 @@ if (typeof window !== 'undefined') {
         };
 
         try {
-          const reqHeaders = { "Content-Type": "application/json" };
-          if (window.firebaseSync && typeof window.firebaseSync.getIdToken === "function") {
-            const idToken = await window.firebaseSync.getIdToken();
-            if (idToken) {
-              reqHeaders["Authorization"] = `Bearer ${idToken}`;
-            }
-          }
-
-          const res = await fetch("/api/assistant/chat", {
+          const res = await this.fetchWithAuth("/api/assistant/chat", {
             method: "POST",
-            headers: reqHeaders,
+            headers: {
+              "Content-Type": "application/json"
+            },
             body: JSON.stringify({
               message: textoLimpio,
               history: this.chatbotHistorial.slice(-6),

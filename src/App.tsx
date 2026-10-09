@@ -42,6 +42,7 @@ export default function App() {
 
       if (newStatus.authState === 'authenticated' && newStatus.user) {
         (window as any).firebaseAuthCurrentUserUid = newStatus.user.uid;
+        (window as any).firebaseSync = firebaseSync;
         document.body.classList.remove('user-unauthenticated');
         if (splash) {
           splash.style.opacity = '0';
